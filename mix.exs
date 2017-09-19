@@ -33,7 +33,7 @@ defmodule HashRing.Mixfile do
       licenses: ["MIT"],
       files: ["lib/*", "mix.exs", "README*", "LICENSE*"],
       links: %{
-        "GitHub" => "https://github.com/hammerandchisel/ex_hash_ring",
+        "GitHub" => "https://github.com/discordapp/ex_hash_ring",
       },
     ]
   end
