@@ -6,9 +6,7 @@ defmodule HashRing.Utils do
 
   def hash(key) when is_binary(key) do
     <<_ :: binary-size(8), a, b, c, d, e, f, g, h>> = :erlang.md5(key)
-    low = d <<< 24 ||| c <<< 16 ||| b <<< 8 ||| a
-    high = h <<< 24 ||| g <<< 16 ||| f <<< 8 ||| e
-    ((high <<< 32) &&& 0xffffffff00000000) ||| low
+    h <<< 56 ||| g <<< 48 ||| f <<< 40 ||| e <<< 32 ||| d <<< 24 ||| c <<< 16 ||| b <<< 8 ||| a
   end
   def hash(key), do: hash("#{key}")
 
