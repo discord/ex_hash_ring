@@ -16,8 +16,8 @@ defmodule HashRing.ETS do
   @spec init({atom, [binary], integer}) :: t
   def init({name, nodes, num_replicas}) do
     table = :ets.new(name, [
-      :public,
-      :set,
+      :protected,
+      :ordered_set,
       :named_table,
       {:read_concurrency, true}
     ])
@@ -101,9 +101,8 @@ defmodule HashRing.ETS do
     ring_gen = ring_gen + 1
     ets_items = Utils.gen_items(nodes, num_replicas)
       |> Tuple.to_list
-      |> Enum.with_index
-      |> Enum.map(fn {item, index} ->
-        {{ring_gen, index}, item}
+      |> Enum.map(fn {hash, node} ->
+        {{ring_gen, hash}, node}
       end)
 
     ets_items = [{:config, {ring_gen, length(ets_items), length(nodes)}} | ets_items]
@@ -114,37 +113,13 @@ defmodule HashRing.ETS do
   defp find_next_highest_item(_name, {_ring_gen, 0, _num_nodes}, _key_int) do
     nil
   end
-  defp find_next_highest_item(name, {_ring_gen, num_items, _num_nodes}=config, key_int) do
-    find_next_highest_item(name, config, key_int, 0, num_items - 1)
-  end
-
-  defp find_next_highest_item(name, {ring_gen, num_items, _num_nodes}=config, key_int, min, max) do
-    mid = div(min + max, 2)
-    {number, _node} = ets_elem(name, ring_gen, mid)
-    {min, max} =
-      if number > key_int do
-        # Key is in the lower half.
-        {min, mid - 1}
-      else
-        # Key is in the upper half.
-        {mid + 1, max}
-      end
-    cond do
-      min > max and min == num_items ->
-        # Past the end of the ring, return the first item.
-        ets_elem(name, ring_gen, 0)
-      min > max ->
-        # Return the next highest item.
-        ets_elem(name, ring_gen, min)
-      true ->
-        find_next_highest_item(name, config, key_int, min, max)
+  defp find_next_highest_item(name, {ring_gen, num_items, _num_nodes}=config, key_int) do
+    key = case :ets.next(name, {ring_gen, key_int}) do
+      {^ring_gen, key_int}=key -> key
+      _ -> :ets.next(name, {ring_gen, -1})
     end
-  end
-
-  defp ets_elem(name, ring_gen, index) do
-    # This should always exist, or there is a big bug and we should CRASH AND BURN!
-    [{{^ring_gen, ^index}, item}] = :ets.lookup(name, {ring_gen, index})
-    item
+    [{{_, number}, node}] = :ets.lookup(name, key)
+    {number, node}
   end
 
   defp get_ring_config(name) do
