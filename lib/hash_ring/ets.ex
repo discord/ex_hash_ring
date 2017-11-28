@@ -6,6 +6,7 @@ defmodule HashRing.ETS do
   use GenServer
 
   alias HashRing.Utils
+  alias HashRing.ETS.Config
 
   defstruct num_replicas: 0, nodes: [], table: nil, ring_gen: 0, name: nil
 
@@ -21,14 +22,8 @@ defmodule HashRing.ETS do
       {:read_concurrency, true}
     ])
 
-    # TODO: need to spawn a process that holds this?
-    :ets.new(__MODULE__, [
-      :public,
-      :set,
-      :named_table,
-      {:read_concurrency, true}
-    ])
-
+    # TODO: start this somewhere sane (a supervisor)
+    Config.start_link()
     state = %__MODULE__{
       table: table,
       num_replicas: num_replicas,
@@ -56,7 +51,7 @@ defmodule HashRing.ETS do
 
   @spec find_node(t, binary | integer) :: binary | nil
   def find_node(name, key) do
-    with {:ok, config} <- get_ring_config(name),
+    with {:ok, config} <- Config.get(name),
          {_, node} <- find_next_highest_item(config, Utils.hash(key)) do
       node
     end
@@ -64,7 +59,7 @@ defmodule HashRing.ETS do
 
   @spec find_nodes(t, binary | integer, integer) :: [binary]
   def find_nodes(name, key, num) do
-    with {:ok, {_, _, num_nodes}=config} <- get_ring_config(name),
+    with {:ok, {_, _, num_nodes}=config} <- Config.get(name),
          nodes <- do_find_nodes(config, min(num, num_nodes), Utils.hash(key), []) do
       nodes
     end
@@ -105,6 +100,10 @@ defmodule HashRing.ETS do
     end
   end
 
+  def handle_info(:gc, state) do
+    {:noreply, state}
+  end
+
   defp rebuild(%{nodes: nodes, num_replicas: num_replicas, name: name, table: table, ring_gen: ring_gen}=state) do
     ring_gen = ring_gen + 1
     ets_items = Utils.gen_items(nodes, num_replicas)
@@ -114,7 +113,8 @@ defmodule HashRing.ETS do
       end)
 
     :ets.insert(table, ets_items)
-    :ets.insert(__MODULE__, {name, {table, ring_gen, length(nodes)}})
+    Config.set(name, self(), {table, ring_gen, length(nodes)})
+    send(self, :gc)
     %{state | ring_gen: ring_gen}
   end
 
@@ -129,14 +129,6 @@ defmodule HashRing.ETS do
     case :ets.lookup(table, key) do
       [{{^ring_gen, number}, node}] -> {number, node}
       _ -> nil
-    end
-  end
-
-  defp get_ring_config(name) do
-    case :ets.lookup(__MODULE__, name) do
-       [{^name, config}] -> {:ok, config}
-       _ ->
-        :error
     end
   end
 end
