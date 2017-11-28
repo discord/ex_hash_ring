@@ -4,6 +4,7 @@ defmodule HashRing do
   @type t :: __MODULE__
 
   use Bitwise
+  alias HashRing.Utils
 
   defstruct num_replicas: 0, nodes: [], items: {}
 
@@ -40,14 +41,14 @@ defmodule HashRing do
 
   @spec find_node(t, binary | integer) :: binary | nil
   def find_node(%{items: items}, key) do
-    with {_, name} <- find_next_highest_item(items, hash(key)) do
+    with {_, name} <- find_next_highest_item(items, Utils.hash(key)) do
       name
     end
   end
 
   @spec find_nodes(t, binary | integer, integer) :: [binary]
   def find_nodes(%{items: items, nodes: nodes}, key, num) do
-    do_find_nodes(items, min(num, length(nodes)), hash(key), [])
+    do_find_nodes(items, min(num, length(nodes)), Utils.hash(key), [])
   end
 
   ## Private
@@ -64,31 +65,8 @@ defmodule HashRing do
     end
   end
 
-  defp hash(key) when is_binary(key) do
-    <<_ :: binary-size(8), a, b, c, d, e, f, g, h>> = :erlang.md5(key)
-    low = d <<< 24 ||| c <<< 16 ||| b <<< 8 ||| a
-    high = h <<< 24 ||| g <<< 16 ||| f <<< 8 ||| e
-    ((high <<< 32) &&& 0xffffffff00000000) ||| low
-  end
-  defp hash(key), do: hash("#{key}")
-
   defp rebuild(%{nodes: nodes}=ring) do
-    %{ring | items: gen_items(nodes, ring.num_replicas)}
-  end
-
-  defp gen_items([], _num_replicas), do: {}
-  defp gen_items(nodes, num_replicas) do
-    gen_items(nodes, Enum.to_list(0..(num_replicas - 1)), [])
-  end
-
-  defp gen_items([], _replicas, items) do
-    items
-      |> Enum.sort(&(elem(&1, 0) < elem(&2, 0)))
-      |> List.to_tuple
-  end
-  defp gen_items([node|nodes], replicas, items) do
-    items = Enum.reduce(replicas, items, &([{hash("#{node}#{&1}"), node}|&2]))
-    gen_items(nodes, replicas, items)
+    %{ring | items: Utils.gen_items(nodes, ring.num_replicas)}
   end
 
   defp find_next_highest_item(items, key_int) do
