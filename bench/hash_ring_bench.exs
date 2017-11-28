@@ -1,4 +1,4 @@
-defmodule ETSHashRingBench do
+defmodule HashRingBench do
   use Benchfella
 
   @nodes [
@@ -8,29 +8,23 @@ defmodule ETSHashRingBench do
     "hash-ring-1-4",
   ]
   @replicas 512
-  @name HashRingBench.ETSRing
 
   before_each_bench _ do
-    {:ok, _pid} = HashRing.ETS.start_link(@name, @nodes, @replicas)
-    {:ok, @name}
-  end
-
-  after_each_bench _ do
-    GenServer.stop(@name)
+    {:ok, HashRing.new(@nodes, @replicas)}
   end
 
   bench "find node" do
-    HashRing.ETS.find_node(bench_context, "1234254543")
+    HashRing.find_node(bench_context, "1234254543")
     :ok
   end
 
   bench "find nodes (1)" do
-    HashRing.ETS.find_nodes(bench_context, "1234254543", 2)
+    HashRing.find_nodes(bench_context, "1234254543", 2)
     :ok
   end
 
   bench "find nodes (2)" do
-    HashRing.ETS.find_nodes(bench_context, "1234254543", 3)
+    HashRing.find_nodes(bench_context, "1234254543", 3)
     :ok
   end
 end
