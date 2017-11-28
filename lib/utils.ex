@@ -2,11 +2,10 @@ defmodule HashRing.Utils do
   @compile :native
 
   @type t :: __MODULE__
-  use Bitwise
 
   def hash(key) when is_binary(key) do
-    <<_ :: binary-size(8), a, b, c, d, e, f, g, h>> = :erlang.md5(key)
-    h <<< 56 ||| g <<< 48 ||| f <<< 40 ||| e <<< 32 ||| d <<< 24 ||| c <<< 16 ||| b <<< 8 ||| a
+    <<_ :: binary-size(8), value :: unsigned-little-integer-size(64)>> = :erlang.md5(key)
+    value
   end
   def hash(key), do: hash("#{key}")
 
