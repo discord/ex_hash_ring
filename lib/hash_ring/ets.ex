@@ -34,6 +34,10 @@ defmodule HashRing.ETS do
     {:ok, state}
   end
 
+  def stop(name) do
+    GenServer.stop(name)
+  end
+
   @spec set_nodes(atom, [binary]) :: t
   def set_nodes(name, nodes) do
     GenServer.call(name, {:set_nodes, nodes})
