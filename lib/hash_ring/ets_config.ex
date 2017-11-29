@@ -34,9 +34,19 @@ defmodule HashRing.ETS.Config do
       {:reply, :ok, state}
     end
 
+    def handle_info({:DOWN, monitor_ref, :process, _pid, _reason}, %{monitored_pids: monitored_pids}=state) do
+       monitored_pids = case Map.pop(monitored_pids, monitor_ref) do
+         {nil, monitored_pids} -> monitored_pids
+         {name, monitored_pids} ->
+            :ets.delete(__MODULE__, name)
+            monitored_pids
+       end
+
+       {:noreply, %{state | monitored_pids: monitored_pids}}
+    end
+
     defp monitor_ring(%{monitored_pids: monitored_pids}=state, name, owner_pid) do
-      ## TODO: implement me
-      ## TODO: implement handle down.
-      state
+      monitor_ref = Process.monitor(owner_pid)
+      %{state | monitored_pids: Map.put(monitored_pids, monitor_ref, name)}
     end
 end

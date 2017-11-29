@@ -65,4 +65,25 @@ defmodule ETSHashRingTest do
     # Select a node that should now be b.
     assert HashRing.ETS.find_node(HashRingEtsTest.RemoveNode, 1) == "b"
   end
+
+  test "ets config will remove config" do
+    {:ok, pid} = HashRing.ETS.start_link(HashRingEtsTest.ProcessWillDie, Harness.nodes())
+    assert HashRing.ETS.Config.get(HashRingEtsTest.ProcessWillDie) != :error
+    assert HashRing.ETS.stop(pid) == :ok
+    assert await_error(fn -> HashRing.ETS.Config.get(HashRingEtsTest.ProcessWillDie) end) == :ok
+  end
+
+  defp await_error(callback), do: await_error(callback, 50)
+  defp await_error(callback, attempts) do
+    case callback.() do
+        :error -> :ok
+        _ ->
+            Process.sleep(50)
+            await_error(callback, attempts - 1)
+    end
+  end
+
+  defp await_error(_callback, 0) do
+    :error
+  end
 end
