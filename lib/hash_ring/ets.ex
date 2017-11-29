@@ -22,8 +22,6 @@ defmodule HashRing.ETS do
       {:read_concurrency, true}
     ])
 
-    # TODO: start this somewhere sane (a supervisor)
-    Config.start_link()
     state = %__MODULE__{
       table: table,
       num_replicas: num_replicas,
@@ -51,6 +49,11 @@ defmodule HashRing.ETS do
   @spec remove_node(atom, binary) :: {:ok, t} | :error
   def remove_node(name, node) do
     GenServer.call(name, {:remove_node, node})
+  end
+
+  @spec get_nodes(atom) :: {:ok, [binary]} | :error
+  def get_nodes(name) do
+    GenServer.call(name, :get_nodes)
   end
 
   @spec find_node(t, binary | integer) :: binary | nil
@@ -102,6 +105,9 @@ defmodule HashRing.ETS do
     else
       {:reply, :error, state}
     end
+  end
+  def handle_call(:get_nodes, _from, %{nodes: nodes}=state) do
+    {:reply, {:ok, nodes}, state}
   end
 
   def handle_info(:gc, state) do

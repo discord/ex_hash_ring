@@ -3,6 +3,11 @@ defmodule ETSHashRingTest do
   alias HashRingTest.Support.Harness
 
   setup_all do
+    HashRing.ETS.Config.start_link()
+    :ok
+  end
+
+  setup_all do
     rings = for num_replicas <- Harness.replicas(), into: %{} do
       name = :"HashRingETSTest.Replicas#{num_replicas}"
       {:ok, _pid} = HashRing.ETS.start_link(name, Harness.nodes(), num_replicas)
@@ -22,5 +27,42 @@ defmodule ETSHashRingTest do
         end
       end
     end
+  end
+
+  test "construct with nodes" do
+    {:ok, pid} = HashRing.ETS.start_link(HashRingEtsTest.ConstructWithNodes, Harness.nodes())
+    {:ok, nodes} = HashRing.ETS.get_nodes(pid)
+    assert nodes == Harness.nodes()
+  end
+
+  test "set nodes" do
+    new_nodes = ["a", "b", "c"]
+    {:ok, pid} = HashRing.ETS.start_link(HashRingEtsTest.SetNodes, Harness.nodes())
+    {:ok, _} = HashRing.ETS.set_nodes(pid, new_nodes)
+    {:ok, nodes} = HashRing.ETS.get_nodes(pid)
+    assert nodes == new_nodes
+
+    # Assert that the ring is also re-generated at this point.
+    assert HashRing.ETS.find_node(HashRingEtsTest.SetNodes, 1) in new_nodes
+  end
+
+  test "add node" do
+    nodes = ["a", "b"]
+    expected_nodes = ["c" | nodes]
+    {:ok, pid} = HashRing.ETS.start_link(HashRingEtsTest.AddNode, nodes)
+    {:ok, _} = HashRing.ETS.add_node(pid, "c")
+    {:ok, ^expected_nodes} = HashRing.ETS.get_nodes(pid)
+    # Select a node that should now be c.
+    assert HashRing.ETS.find_node(HashRingEtsTest.AddNode, 1) == "c"
+  end
+
+  test "remmove node" do
+    nodes = ["a", "b", "c"]
+    expected_nodes = nodes -- ["c"]
+    {:ok, pid} = HashRing.ETS.start_link(HashRingEtsTest.RemoveNode, nodes)
+    {:ok, _} = HashRing.ETS.remove_node(pid, "c")
+    {:ok, ^expected_nodes} = HashRing.ETS.get_nodes(pid)
+    # Select a node that should now be b.
+    assert HashRing.ETS.find_node(HashRingEtsTest.RemoveNode, 1) == "b"
   end
 end
