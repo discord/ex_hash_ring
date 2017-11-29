@@ -17,7 +17,6 @@ defmodule HashRing.Utils do
   def gen_items([], _replicas, items) do
     items
       |> Enum.sort(&(elem(&1, 0) < elem(&2, 0)))
-      |> List.to_tuple
   end
   def gen_items([node|nodes], replicas, items) do
     items = Enum.reduce(replicas, items, &([{hash("#{node}#{&1}"), node}|&2]))

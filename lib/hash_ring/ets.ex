@@ -111,7 +111,6 @@ defmodule HashRing.ETS do
   defp rebuild(%{nodes: nodes, num_replicas: num_replicas, name: name, table: table, ring_gen: ring_gen}=state) do
     ring_gen = ring_gen + 1
     ets_items = Utils.gen_items(nodes, num_replicas)
-      |> Tuple.to_list
       |> Enum.map(fn {hash, node} ->
         {{ring_gen, hash}, node}
       end)

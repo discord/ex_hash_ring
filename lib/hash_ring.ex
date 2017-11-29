@@ -66,7 +66,7 @@ defmodule HashRing do
   end
 
   defp rebuild(%{nodes: nodes}=ring) do
-    %{ring | items: Utils.gen_items(nodes, ring.num_replicas)}
+    %{ring | items: Utils.gen_items(nodes, ring.num_replicas) |> List.to_tuple}
   end
 
   defp find_next_highest_item(items, key_int) do
