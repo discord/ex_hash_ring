@@ -96,11 +96,11 @@ defmodule HashRing.ETS do
 
   ## Private
 
-  defp do_find_nodes(_config, 0, _key_int, nodes) do
+  defp do_find_nodes(_config, 0, _hash, nodes) do
     Enum.reverse(nodes)
   end
-  defp do_find_nodes(config, remaining, key_int, nodes) do
-    {number, node} = find_next_highest_item(config, key_int)
+  defp do_find_nodes(config, remaining, hash, nodes) do
+    {number, node} = find_next_highest_item(config, hash)
     if node in nodes do
       do_find_nodes(config, remaining, number, nodes)
     else
@@ -109,20 +109,20 @@ defmodule HashRing.ETS do
   end
 
   def handle_call({:set_nodes, nodes}, _from, %{name: name}=state) do
-    new_state = %{state | nodes: nodes} |> rebuild
+    new_state = rebuild(%{state | nodes: nodes})
     {:reply, {:ok, name}, new_state}
   end
   def handle_call({:add_node, node}, _from, %{name: name, nodes: nodes}=state) do
     if node in nodes do
       {:reply, :error, state}
     else
-      new_state = %{state | nodes: [node|nodes]} |> rebuild
+      new_state = rebuild(%{state | nodes: [node|nodes]})
       {:reply, {:ok, name}, new_state}
     end
   end
   def handle_call({:remove_node, node}, _from, %{name: name, nodes: nodes}=state) do
     if node in nodes do
-      new_state = %{state | nodes: nodes -- [node]} |> rebuild
+      new_state = rebuild(%{state | nodes: nodes -- [node]})
       {:reply, {:ok, name}, new_state}
     else
       {:reply, :error, state}
@@ -132,13 +132,14 @@ defmodule HashRing.ETS do
     {:reply, {:ok, nodes}, state}
   end
   def handle_call({:force_gc, ring_gen}, _from, %{pending_gcs: pending_gcs, table: table}=state) do
-    {reply, pending_gcs} = case Map.pop(pending_gcs, ring_gen) do
-      {nil, pending_gcs} ->
-        {{:error, :not_pending}, pending_gcs}
-      {timer_ref, pending_gcs} ->
-        Process.cancel_timer(timer_ref)
-        {do_ring_gen_gc(table, ring_gen), pending_gcs}
-    end
+    {reply, pending_gcs} =
+      case Map.pop(pending_gcs, ring_gen) do
+        {nil, pending_gcs} ->
+          {{:error, :not_pending}, pending_gcs}
+        {timer_ref, pending_gcs} ->
+          Process.cancel_timer(timer_ref)
+          {do_ring_gen_gc(table, ring_gen), pending_gcs}
+      end
 
     {:reply, reply, %{state | pending_gcs: pending_gcs}}
   end
@@ -176,11 +177,11 @@ defmodule HashRing.ETS do
     :ok
   end
 
-  defp find_next_highest_item({_table, _ring_gen, 0}, _key_int) do
+  defp find_next_highest_item({_table, _ring_gen, 0}, _hash) do
     nil
   end
-  defp find_next_highest_item({table, ring_gen, _num_nodes}, key_int) do
-    key = case :ets.next(table, {ring_gen, key_int}) do
+  defp find_next_highest_item({table, ring_gen, _num_nodes}, hash) do
+    key = case :ets.next(table, {ring_gen, hash}) do
       {^ring_gen, _number}=key -> key
       _ -> :ets.next(table, {ring_gen, -1})
     end
