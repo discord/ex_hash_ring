@@ -99,12 +99,12 @@ defmodule HashRing.ETS do
   defp do_find_nodes(_config, 0, _key_int, nodes) do
     Enum.reverse(nodes)
   end
-  defp do_find_nodes(config, ret, key_int, nodes) do
+  defp do_find_nodes(config, remaining, key_int, nodes) do
     {number, node} = find_next_highest_item(config, key_int)
     if node in nodes do
-      do_find_nodes(config, ret, number, nodes)
+      do_find_nodes(config, remaining, number, nodes)
     else
-      do_find_nodes(config, ret - 1, number, [node|nodes])
+      do_find_nodes(config, remaining - 1, number, [node|nodes])
     end
   end
 
