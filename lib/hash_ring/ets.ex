@@ -145,7 +145,8 @@ defmodule HashRing.ETS do
 
   def handle_info({:gc, ring_gen}, %{pending_gcs: pending_gcs, table: table}=state) do
     pending_gcs = case Map.pop(pending_gcs, ring_gen) do
-      {nil, pending_gcs} -> pending_gcs
+      {nil, pending_gcs} ->
+        pending_gcs
       {_stale_timer_ref, pending_gcs} ->
         do_ring_gen_gc(table, ring_gen)
         pending_gcs
