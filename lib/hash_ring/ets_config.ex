@@ -1,6 +1,7 @@
 defmodule HashRing.ETS.Config do
     use GenServer
 
+    @type config :: {reference, integer, integer}
     defstruct monitored_pids: %{}
 
     def start_link() do
@@ -17,10 +18,12 @@ defmodule HashRing.ETS.Config do
       {:ok, %__MODULE__{}}
     end
 
+    @spec set(atom, pid, config) :: :ok
     def set(name, owner_pid, config) do
       GenServer.call(__MODULE__, {:set, name, owner_pid, config})
     end
 
+    @spec get(atom) :: {:ok, config} | :error
     def get(name) do
       case :ets.lookup(__MODULE__, name) do
         [{^name, config}] -> {:ok, config}
