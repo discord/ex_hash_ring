@@ -42,22 +42,22 @@ defmodule HashRing.ETS do
     GenServer.stop(name)
   end
 
-  @spec set_nodes(atom, [binary]) :: t
+  @spec set_nodes(atom, [binary]) :: {:ok, [binary]}
   def set_nodes(name, nodes) do
     GenServer.call(name, {:set_nodes, nodes})
   end
 
-  @spec add_node(atom, binary) :: {:ok, t} | :error
+  @spec add_node(atom, binary) :: {:ok, [binary]} | {:error, :node_exists}
   def add_node(name, node) do
     GenServer.call(name, {:add_node, node})
   end
 
-  @spec remove_node(atom, binary) :: {:ok, t} | :error
+  @spec remove_node(atom, binary) :: {:ok, [binary]} | {:error, :node_exists}
   def remove_node(name, node) do
     GenServer.call(name, {:remove_node, node})
   end
 
-  @spec get_nodes(atom) :: {:ok, [binary]} | :error
+  @spec get_nodes(atom) :: {:ok, [binary]}
   def get_nodes(name) do
     GenServer.call(name, :get_nodes)
   end
@@ -108,24 +108,23 @@ defmodule HashRing.ETS do
     end
   end
 
-  def handle_call({:set_nodes, nodes}, _from, %{name: name}=state) do
-    new_state = rebuild(%{state | nodes: nodes})
-    {:reply, {:ok, name}, new_state}
+  def handle_call({:set_nodes, nodes}, _from, state) do
+    {:reply, {:ok, nodes}, rebuild(%{state | nodes: nodes})}
   end
-  def handle_call({:add_node, node}, _from, %{name: name, nodes: nodes}=state) do
+  def handle_call({:add_node, node}, _from, %{nodes: nodes}=state) do
     if node in nodes do
-      {:reply, :error, state}
+      {:reply, {:error, :node_exists}, state}
     else
-      new_state = rebuild(%{state | nodes: [node|nodes]})
-      {:reply, {:ok, name}, new_state}
+      nodes = [node|nodes]
+      {:reply, {:ok, nodes}, rebuild(%{state | nodes: nodes})}
     end
   end
-  def handle_call({:remove_node, node}, _from, %{name: name, nodes: nodes}=state) do
+  def handle_call({:remove_node, node}, _from, %{nodes: nodes}=state) do
     if node in nodes do
-      new_state = rebuild(%{state | nodes: nodes -- [node]})
-      {:reply, {:ok, name}, new_state}
+      nodes = nodes -- [node]
+      {:reply, {:ok, nodes}, rebuild(%{state | nodes: nodes})}
     else
-      {:reply, :error, state}
+      {:reply, {:error, :node_not_exists}, state}
     end
   end
   def handle_call(:get_nodes, _from, %{nodes: nodes}=state) do
