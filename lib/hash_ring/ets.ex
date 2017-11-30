@@ -28,12 +28,12 @@ defmodule HashRing.ETS do
       {:read_concurrency, true}
     ])
 
-    state = %__MODULE__{
+    state = rebuild(%__MODULE__{
       table: table,
       num_replicas: num_replicas,
       nodes: nodes,
       name: name,
-    } |> rebuild
+    })
 
     {:ok, state}
   end
@@ -154,15 +154,16 @@ defmodule HashRing.ETS do
     {:noreply, %{state | pending_gcs: pending_gcs}}
   end
 
-  defp rebuild(%{nodes: nodes, num_replicas: num_replicas, name: name, table: table, ring_gen: ring_gen, pending_gcs: pending_gcs}=state) do
+  defp rebuild(%{nodes: nodes, num_replicas: num_replicas, name: name,
+                 table: table, ring_gen: ring_gen, pending_gcs: pending_gcs}=state) do
     new_ring_gen = ring_gen + 1
-    ets_items = Utils.gen_items(nodes, num_replicas)
-      |> Enum.map(fn {hash, node} ->
-        {{new_ring_gen, hash}, node}
-      end)
 
-    :ets.insert(table, ets_items)
+    :ets.insert(table, for {hash, node} <- Utils.gen_items(nodes, num_replicas) do
+      {{new_ring_gen, hash}, node}
+    end)
     Config.set(name, self(), {table, new_ring_gen, length(nodes)})
+
+    # Schedule GCing this ring gen.
     timer_ref = Process.send_after(self(), {:gc, ring_gen}, ring_gen_gc_delay())
     %{state | ring_gen: new_ring_gen, pending_gcs: Map.put(pending_gcs, ring_gen, timer_ref)}
   end
