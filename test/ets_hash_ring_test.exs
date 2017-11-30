@@ -81,16 +81,14 @@ defmodule ETSHashRingTest do
     {:ok, pid} = HashRing.ETS.start_link(HashRingEtsTest.ManualRingGenGc, nodes)
     {:ok, _} = HashRing.ETS.remove_node(pid, "c")
     assert HashRing.ETS.get_ring_gen(HashRingEtsTest.ManualRingGenGc) == {:ok, 2}
+
+
     assert HashRing.ETS.force_gc(pid, 1) == :ok
     assert HashRing.ETS.force_gc(pid, 1) == {:error, :not_pending}
 
     # Break the veil and look under the hood and make sure that we don't have any old things in it anymore.
-    %{table: table} = :sys.get_state(HashRingEtsTest.ManualRingGenGc)
-    assert :ets.tab2list(table)
-      |> Enum.filter(fn {{ring_gen, _}, _} -> ring_gen == 1 end)
-      |> Enum.count == 0
-
-    assert :ets.info(table, :size) == 1024
+    assert count_ring_gen_entries(HashRingEtsTest.ManualRingGenGc, 1) == 0
+    assert ring_ets_table_size(HashRingEtsTest.ManualRingGenGc) == 1024
   end
 
   test "automatic ring gc" do
@@ -103,19 +101,26 @@ defmodule ETSHashRingTest do
     assert HashRing.ETS.get_ring_gen(HashRingEtsTest.AutomaticRingGc) == {:ok, 2}
 
     # Break the veil and look under the hood and make sure that we don't have any old things in it anymore.
-    %{table: table} = :sys.get_state(HashRingEtsTest.AutomaticRingGc)
-    assert await(fn -> :ets.tab2list(table)
-      |> Enum.filter(fn {{ring_gen, _}, _} -> ring_gen == 1 end)
-      |> Enum.count == 0
-    end)
-
+    assert await(fn -> count_ring_gen_entries(HashRingEtsTest.AutomaticRingGc, 1) == 0 end)
     assert HashRing.ETS.force_gc(pid, 1) == {:error, :not_pending}
-    assert :ets.info(table, :size) == 1024
+    assert ring_ets_table_size(HashRingEtsTest.AutomaticRingGc) == 1024
   end
 
   test "operations on nonexistent ring dont fail" do
     assert HashRing.ETS.find_node(HashRingEtsTest.DoesNotExist, 1) == nil
     assert HashRing.ETS.find_nodes(HashRingEtsTest.DoesNotExist, 1, 2) == []
+  end
+
+  defp count_ring_gen_entries(name, ring_gen) do
+    {:ok, {table, _, _}} = HashRing.ETS.Config.get(name)
+    :ets.tab2list(table)
+      |> Enum.filter(fn {{ring_gen, _}, _} -> ring_gen == 1 end)
+      |> Enum.count
+  end
+
+  defp ring_ets_table_size(name) do
+    {:ok, {table, _, _}} = HashRing.ETS.Config.get(name)
+    :ets.info(table, :size)
   end
 
   defp await(callback), do: await(callback, 50)
