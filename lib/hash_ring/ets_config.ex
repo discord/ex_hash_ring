@@ -1,7 +1,9 @@
 defmodule HashRing.ETS.Config do
     use GenServer
 
-    @type config :: {reference, integer, integer}
+    @type ring_gen :: integer
+    @type num_nodes :: integer
+    @type config :: {reference, ring_gen, num_nodes}
     defstruct monitored_pids: %{}
 
     def start_link() do
