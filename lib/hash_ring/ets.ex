@@ -1,6 +1,7 @@
 defmodule HashRing.ETS do
   @compile :native
 
+  @default_ring_gen_gc_delay 10_000
   @type t :: __MODULE__
 
   use GenServer
@@ -8,7 +9,12 @@ defmodule HashRing.ETS do
   alias HashRing.Utils
   alias HashRing.ETS.Config
 
-  defstruct num_replicas: 0, nodes: [], table: nil, ring_gen: 0, name: nil
+  defstruct num_replicas: 0,
+            nodes: [],
+            table: nil,
+            ring_gen: 0,
+            name: nil,
+            pending_gcs: %{}
 
   def start_link(name, nodes \\ [], num_replicas \\ 512) do
     GenServer.start_link(__MODULE__, {name, nodes, num_replicas}, name: name)
@@ -56,19 +62,35 @@ defmodule HashRing.ETS do
     GenServer.call(name, :get_nodes)
   end
 
-  @spec find_node(t, binary | integer) :: binary | nil
+  @spec force_gc(atom, integer) :: :ok | {:error, :not_pending}
+  def force_gc(name, ring_gen) do
+    GenServer.call(name, {:force_gc, ring_gen})
+  end
+
+  @spec get_ring_gen(atom) :: {:ok, integer} | :error
+  def get_ring_gen(name) do
+    with {:ok, {_, ring_gen, _}} <- Config.get(name) do
+      {:ok, ring_gen}
+    end
+  end
+
+  @spec find_node(atom, binary | integer) :: binary | nil
   def find_node(name, key) do
     with {:ok, config} <- Config.get(name),
          {_, node} <- find_next_highest_item(config, Utils.hash(key)) do
       node
+    else
+      _ -> nil
     end
   end
 
-  @spec find_nodes(t, binary | integer, integer) :: [binary]
+  @spec find_nodes(atom, binary | integer, integer) :: [binary]
   def find_nodes(name, key, num) do
     with {:ok, {_, _, num_nodes}=config} <- Config.get(name),
          nodes <- do_find_nodes(config, min(num, num_nodes), Utils.hash(key), []) do
       nodes
+    else
+      _ -> []
     end
   end
 
@@ -109,22 +131,49 @@ defmodule HashRing.ETS do
   def handle_call(:get_nodes, _from, %{nodes: nodes}=state) do
     {:reply, {:ok, nodes}, state}
   end
+  def handle_call({:force_gc, ring_gen}, _from, %{pending_gcs: pending_gcs, table: table}=state) do
+    {reply, pending_gcs} = case Map.pop(pending_gcs, ring_gen) do
+      {nil, pending_gcs} ->
+        {{:error, :not_pending}, pending_gcs}
+      {timer_ref, pending_gcs} ->
+        Process.cancel_timer(timer_ref)
+        {do_ring_gen_gc(table, ring_gen), pending_gcs}
+    end
 
-  def handle_info(:gc, state) do
-    {:noreply, state}
+    {:reply, reply, %{state | pending_gcs: pending_gcs}}
   end
 
-  defp rebuild(%{nodes: nodes, num_replicas: num_replicas, name: name, table: table, ring_gen: ring_gen}=state) do
-    ring_gen = ring_gen + 1
+  def handle_info({:gc, ring_gen}, %{pending_gcs: pending_gcs, table: table}=state) do
+    pending_gcs = case Map.pop(pending_gcs, ring_gen) do
+      {nil, pending_gcs} -> pending_gcs
+      {_stale_timer_ref, pending_gcs} ->
+        do_ring_gen_gc(table, ring_gen)
+        pending_gcs
+    end
+
+    {:noreply, %{state | pending_gcs: pending_gcs}}
+  end
+
+  defp rebuild(%{nodes: nodes, num_replicas: num_replicas, name: name, table: table, ring_gen: ring_gen, pending_gcs: pending_gcs}=state) do
+    new_ring_gen = ring_gen + 1
     ets_items = Utils.gen_items(nodes, num_replicas)
       |> Enum.map(fn {hash, node} ->
-        {{ring_gen, hash}, node}
+        {{new_ring_gen, hash}, node}
       end)
 
     :ets.insert(table, ets_items)
-    Config.set(name, self(), {table, ring_gen, length(nodes)})
-    send(self, :gc)
-    %{state | ring_gen: ring_gen}
+    Config.set(name, self(), {table, new_ring_gen, length(nodes)})
+    timer_ref = Process.send_after(self(), {:gc, ring_gen}, ring_gen_gc_delay())
+    %{state | ring_gen: new_ring_gen, pending_gcs: Map.put(pending_gcs, ring_gen, timer_ref)}
+  end
+
+  defp ring_gen_gc_delay() do
+    Application.get_env(:hash_ring, :ets_gc_delay, @default_ring_gen_gc_delay)
+  end
+
+  defp do_ring_gen_gc(table, ring_gen) do
+    :ets.match_delete(table, {{ring_gen, :_}, :_})
+    :ok
   end
 
   defp find_next_highest_item({_table, _ring_gen, 0}, _key_int) do

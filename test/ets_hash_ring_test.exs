@@ -43,6 +43,7 @@ defmodule ETSHashRingTest do
     assert nodes == new_nodes
 
     # Assert that the ring is also re-generated at this point.
+    assert HashRing.ETS.get_ring_gen(HashRingEtsTest.SetNodes) == {:ok, 2}
     assert HashRing.ETS.find_node(HashRingEtsTest.SetNodes, 1) in new_nodes
   end
 
@@ -53,6 +54,7 @@ defmodule ETSHashRingTest do
     {:ok, _} = HashRing.ETS.add_node(pid, "c")
     {:ok, ^expected_nodes} = HashRing.ETS.get_nodes(pid)
     # Select a node that should now be c.
+    assert HashRing.ETS.get_ring_gen(HashRingEtsTest.AddNode) == {:ok, 2}
     assert HashRing.ETS.find_node(HashRingEtsTest.AddNode, 1) == "c"
   end
 
@@ -63,6 +65,7 @@ defmodule ETSHashRingTest do
     {:ok, _} = HashRing.ETS.remove_node(pid, "c")
     {:ok, ^expected_nodes} = HashRing.ETS.get_nodes(pid)
     # Select a node that should now be b.
+    assert HashRing.ETS.get_ring_gen(HashRingEtsTest.RemoveNode) == {:ok, 2}
     assert HashRing.ETS.find_node(HashRingEtsTest.RemoveNode, 1) == "b"
   end
 
@@ -70,20 +73,61 @@ defmodule ETSHashRingTest do
     {:ok, pid} = HashRing.ETS.start_link(HashRingEtsTest.ProcessWillDie, Harness.nodes())
     assert HashRing.ETS.Config.get(HashRingEtsTest.ProcessWillDie) != :error
     assert HashRing.ETS.stop(pid) == :ok
-    assert await_error(fn -> HashRing.ETS.Config.get(HashRingEtsTest.ProcessWillDie) end) == :ok
+    assert await(fn -> HashRing.ETS.Config.get(HashRingEtsTest.ProcessWillDie) == :error end)
   end
 
-  defp await_error(callback), do: await_error(callback, 50)
-  defp await_error(callback, attempts) do
+  test "ring gen gc happens" do
+    nodes = ["a", "b", "c"]
+    {:ok, pid} = HashRing.ETS.start_link(HashRingEtsTest.ManualRingGenGc, nodes)
+    {:ok, _} = HashRing.ETS.remove_node(pid, "c")
+    assert HashRing.ETS.get_ring_gen(HashRingEtsTest.ManualRingGenGc) == {:ok, 2}
+    assert HashRing.ETS.force_gc(pid, 1) == :ok
+    assert HashRing.ETS.force_gc(pid, 1) == {:error, :not_pending}
+
+    # Break the veil and look under the hood and make sure that we don't have any old things in it anymore.
+    %{table: table} = :sys.get_state(HashRingEtsTest.ManualRingGenGc)
+    assert :ets.tab2list(table)
+      |> Enum.filter(fn {{ring_gen, _}, _} -> ring_gen == 1 end)
+      |> Enum.count == 0
+
+    assert :ets.info(table, :size) == 1024
+  end
+
+  test "automatic ring gc" do
+    Application.put_env(:hash_ring, :ets_gc_delay, 50)
+    on_exit fn -> Application.delete_env(:hash_ring, :ets_gc_delay) end
+
+    nodes = ["a", "b", "c"]
+    {:ok, pid} = HashRing.ETS.start_link(HashRingEtsTest.AutomaticRingGc, nodes)
+    {:ok, _} = HashRing.ETS.remove_node(pid, "c")
+    assert HashRing.ETS.get_ring_gen(HashRingEtsTest.AutomaticRingGc) == {:ok, 2}
+
+    # Break the veil and look under the hood and make sure that we don't have any old things in it anymore.
+    %{table: table} = :sys.get_state(HashRingEtsTest.AutomaticRingGc)
+    assert await(fn -> :ets.tab2list(table)
+      |> Enum.filter(fn {{ring_gen, _}, _} -> ring_gen == 1 end)
+      |> Enum.count == 0
+    end)
+
+    assert HashRing.ETS.force_gc(pid, 1) == {:error, :not_pending}
+    assert :ets.info(table, :size) == 1024
+  end
+
+  test "operations on nonexistent ring dont fail" do
+    assert HashRing.ETS.find_node(HashRingEtsTest.DoesNotExist, 1) == nil
+    assert HashRing.ETS.find_nodes(HashRingEtsTest.DoesNotExist, 1, 2) == []
+  end
+
+  defp await(callback), do: await(callback, 50)
+  defp await(_callback, 0) do
+    false
+  end
+  defp await(callback, attempts) do
     case callback.() do
-        :error -> :ok
+        true -> true
         _ ->
-            Process.sleep(50)
-            await_error(callback, attempts - 1)
+          Process.sleep(50)
+          await(callback, attempts - 1)
     end
-  end
-
-  defp await_error(_callback, 0) do
-    :error
   end
 end
