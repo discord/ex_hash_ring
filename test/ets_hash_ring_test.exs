@@ -114,7 +114,7 @@ defmodule ETSHashRingTest do
   defp count_ring_gen_entries(name, ring_gen) do
     {:ok, {table, _, _}} = HashRing.ETS.Config.get(name)
     :ets.tab2list(table)
-      |> Enum.filter(fn {{ring_gen, _}, _} -> ring_gen == 1 end)
+      |> Enum.filter(fn {{ring_gen_, _}, _} -> ring_gen_ == ring_gen end)
       |> Enum.count
   end
 
