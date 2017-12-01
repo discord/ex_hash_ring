@@ -46,8 +46,7 @@ defmodule ETSHAshRingOperationsTest do
 
   setup do
     name = :"HashRingEtsTest#{:erlang.unique_integer([:positive])}"
-    {:ok, pid} = Ring.start_link(name, @nodes)
-#    on_exit fn -> Ring.stop(pid) end
+    {:ok, _pid} = Ring.start_link(name, @nodes)
 
     [name: name]
   end
