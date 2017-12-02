@@ -1,6 +1,4 @@
 defmodule HashRing.ETS do
-  @compile :native
-
   @default_ring_gen_gc_delay 10_000
   @type t :: __MODULE__
 
