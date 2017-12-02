@@ -2,12 +2,6 @@ defmodule ETSHashRingTest do
   use ExUnit.Case
   alias HashRingTest.Support.Harness
   alias HashRing.ETS, as: Ring
-  alias HashRing.ETS.Config
-
-  setup_all do
-    Config.start_link()
-    :ok
-  end
 
   setup_all do
     rings = for num_replicas <- Harness.replicas(), into: %{} do
@@ -35,12 +29,6 @@ end
 defmodule ETSHAshRingOperationsTest do
   use ExUnit.Case
   alias HashRing.ETS, as: Ring
-  alias HashRing.ETS.Config
-
-  setup_all do
-    Config.start_link()
-    :ok
-  end
 
   @nodes ["a", "b", "c"]
 
@@ -86,9 +74,9 @@ defmodule ETSHAshRingOperationsTest do
   end
 
   test "ets config will remove config", %{name: name} do
-    assert Config.get(name) != :error
+    assert Ring.Config.get(name) != :error
     assert Ring.stop(name) == :ok
-    assert await(fn -> Config.get(name) == :error end)
+    assert await(fn -> Ring.Config.get(name) == :error end)
   end
 
   test "ring gen gc happens", %{name: name} do
@@ -136,14 +124,14 @@ defmodule ETSHAshRingOperationsTest do
   end
 
   defp count_ring_gen_entries(name, ring_gen) do
-    {:ok, {table, _, _}} = Config.get(name)
+    {:ok, {table, _, _}} = Ring.Config.get(name)
     :ets.tab2list(table)
       |> Enum.filter(fn {{ring_gen_, _}, _} -> ring_gen_ == ring_gen end)
       |> Enum.count
   end
 
   defp ring_ets_table_size(name) do
-    {:ok, {table, _, _}} = Config.get(name)
+    {:ok, {table, _, _}} = Ring.Config.get(name)
     :ets.info(table, :size)
   end
 

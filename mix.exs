@@ -16,7 +16,8 @@ defmodule HashRing.Mixfile do
 
   def application do
     [
-      applications: []
+      applications: [],
+      mod: {ExHashRing, []}
     ]
   end
 
