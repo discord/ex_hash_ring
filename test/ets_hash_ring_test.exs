@@ -6,7 +6,7 @@ defmodule ETSHashRingTest do
   setup_all do
     rings = for num_replicas <- Harness.replicas(), into: %{} do
       name = :"HashRingETSTest.Replicas#{num_replicas}"
-      {:ok, _pid} = Ring.start_link(name, Harness.nodes(), num_replicas)
+      {:ok, _pid} = Ring.start_link(name, nodes: Harness.nodes(), num_replicas: num_replicas, named: true)
       {num_replicas, name}
     end
     {:ok, rings: rings}
@@ -34,7 +34,7 @@ defmodule ETSHAshRingOperationsTest do
 
   setup do
     name = :"HashRingEtsTest#{:erlang.unique_integer([:positive])}"
-    {:ok, _pid} = Ring.start_link(name, @nodes)
+    {:ok, _pid} = Ring.start_link(name, nodes: @nodes, named: true)
 
     [name: name]
   end
@@ -124,7 +124,7 @@ defmodule ETSHAshRingOperationsTest do
   end
 
   test "HashRing.ETS.start_link/1" do
-    {:ok, _pid} = Ring.start_link(ets_table_name: TestModule.Foo, nodes: @nodes)
+    {:ok, _pid} = Ring.start_link(TestModule.Foo, nodes: @nodes)
     assert Ring.find_node(TestModule.Foo, 1) == "c"
     assert Process.whereis(TestModule.Foo) == nil
   end

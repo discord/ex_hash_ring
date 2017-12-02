@@ -16,25 +16,17 @@ defmodule HashRing.ETS do
             name: nil,
             pending_gcs: %{}
 
-  def start_link(opts \\ []) do
+  def start_link(name, opts \\ []) do
+    named = Keyword.get(opts, :named, false)
     nodes = Keyword.get(opts, :nodes, [])
     num_replicas = Keyword.get(opts, :num_replicas, @default_num_replicas)
-    name = Keyword.get(opts, :name)
-    ets_table_name = Keyword.get(opts, :ets_table_name, name)
-    gen_opts = if name do
+    gen_opts = if named do
       [name: name]
     else
       []
     end
 
-    unless ets_table_name do
-      raise "An ets table name must be provided as a keyword option to HashRing.ETS.start_link/1"
-    end
-
-    GenServer.start_link(__MODULE__, {ets_table_name, nodes, num_replicas}, gen_opts)
-  end
-  def start_link(name, nodes, num_replicas \\ @default_num_replicas) do
-    GenServer.start_link(__MODULE__, {name, nodes, num_replicas}, name: name)
+    GenServer.start_link(__MODULE__, {name, nodes, num_replicas}, gen_opts)
   end
 
   @spec init({atom, [binary], integer}) :: t
