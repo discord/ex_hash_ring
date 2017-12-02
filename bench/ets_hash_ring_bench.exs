@@ -18,7 +18,7 @@ defmodule ETSHashRingBench do
   end
 
   before_each_bench _ do
-    {:ok, _pid} = Ring.start_link(@name, @nodes, @replicas)
+    {:ok, _pid} = Ring.start_link(@name, nodes: @nodes, num_replicas: @replicas, named: true)
     {:ok, @name}
   end
 
