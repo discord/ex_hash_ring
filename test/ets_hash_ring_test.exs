@@ -146,11 +146,11 @@ defmodule ETSHAshRingOperationsTest do
     false
   end
   defp await(callback, attempts) do
-    case callback.() do
-      true -> true
-      _ ->
-        Process.sleep(50)
-        await(callback, attempts - 1)
+    if callback.() do
+      true
+    else
+      Process.sleep(50)
+      await(callback, attempts - 1)
     end
   end
 end
