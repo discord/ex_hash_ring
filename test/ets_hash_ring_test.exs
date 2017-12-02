@@ -104,6 +104,19 @@ defmodule ETSHAshRingOperationsTest do
     assert ring_ets_table_size(name) == 1024
   end
 
+  test "ring gen gc all", %{name: name} do
+    {:ok, _} = Ring.remove_node(name, "c")
+    assert Ring.get_ring_gen(name) == {:ok, 2}
+
+
+    assert Ring.force_gc(name) == {:ok, [1]}
+    assert Ring.force_gc(name) == {:ok, []}
+
+    # Break the veil and look under the hood and make sure that we don't have any old things in it anymore.
+    assert count_ring_gen_entries(name, 1) == 0
+    assert ring_ets_table_size(name) == 1024
+  end
+
   test "automatic ring gc", %{name: name} do
     Application.put_env(:hash_ring, :ets_gc_delay, 50)
     on_exit fn -> Application.delete_env(:hash_ring, :ets_gc_delay) end

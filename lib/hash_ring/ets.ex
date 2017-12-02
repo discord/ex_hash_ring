@@ -16,6 +16,13 @@ defmodule HashRing.ETS do
             name: nil,
             pending_gcs: %{}
 
+  @spec child_spec(atom, Keyword.t) :: tuple
+  def child_spec(name, opts \\ []) do
+    import Supervisor.Spec, warn: false
+    opts = Keyword.put(opts, :name, name)
+    supervisor(__MODULE__, [name, opts])
+  end
+
   def start_link(name, nodes \\ [], num_replicas \\ 512) do
     GenServer.start_link(__MODULE__, {name, nodes, num_replicas}, name: name)
   end
@@ -62,6 +69,10 @@ defmodule HashRing.ETS do
     GenServer.call(name, :get_nodes)
   end
 
+  @spec force_gc(atom) :: {:ok, [integer]}
+  def force_gc(name) do
+    GenServer.call(name, :force_gc)
+  end
   @spec force_gc(atom, integer) :: :ok | {:error, :not_pending}
   def force_gc(name, ring_gen) do
     GenServer.call(name, {:force_gc, ring_gen})
@@ -130,6 +141,19 @@ defmodule HashRing.ETS do
   def handle_call(:get_nodes, _from, %{nodes: nodes}=state) do
     {:reply, {:ok, nodes}, state}
   end
+
+  def handle_call(:force_gc, _from, %{pending_gcs: pending_gcs}=state) when map_size(pending_gcs) == 0 do
+    {:reply, {:ok, []}, state}
+  end
+  def handle_call(:force_gc, _from, %{pending_gcs: pending_gcs, table: table}=state) do
+    ring_gens = for {ring_gen, timer_ref} <- pending_gcs do
+        Process.cancel_timer(timer_ref)
+        do_ring_gen_gc(table, ring_gen)
+        ring_gen
+    end
+
+    {:reply, {:ok, ring_gens}, %{state | pending_gcs: %{}}}
+  end
   def handle_call({:force_gc, ring_gen}, _from, %{pending_gcs: pending_gcs, table: table}=state) do
     {reply, pending_gcs} =
       case Map.pop(pending_gcs, ring_gen) do
@@ -156,7 +180,7 @@ defmodule HashRing.ETS do
   end
 
   defp rebuild(%{nodes: nodes, num_replicas: num_replicas, name: name,
-                 table: table, ring_gen: ring_gen, pending_gcs: pending_gcs}=state) do
+                 table: table, ring_gen: ring_gen}=state) do
     new_ring_gen = ring_gen + 1
 
     :ets.insert(table, for {hash, node} <- Utils.gen_items(nodes, num_replicas) do
@@ -164,9 +188,13 @@ defmodule HashRing.ETS do
     end)
     Config.set(name, self(), {table, new_ring_gen, length(nodes)})
 
-    # Schedule GCing this ring gen.
-    timer_ref = Process.send_after(self(), {:gc, ring_gen}, ring_gen_gc_delay())
-    %{state | ring_gen: new_ring_gen, pending_gcs: Map.put(pending_gcs, ring_gen, timer_ref)}
+    schedule_gc(%{state | ring_gen: new_ring_gen}, ring_gen)
+  end
+
+  def schedule_gc(state, 0), do: state
+  def schedule_gc(%{pending_gcs: pending_gcs}=state, ring_gen) do
+      timer_ref = Process.send_after(self(), {:gc, ring_gen}, ring_gen_gc_delay())
+      %{state | pending_gcs: Map.put(pending_gcs, ring_gen, timer_ref)}
   end
 
   defp ring_gen_gc_delay() do

@@ -1,5 +1,7 @@
 defmodule ETSHashRingBench do
   use Benchfella
+  alias HashRing.ETS, as: Ring
+
 
   @nodes [
     "hash-ring-1-1",
@@ -10,8 +12,13 @@ defmodule ETSHashRingBench do
   @replicas 512
   @name HashRingBench.ETSRing
 
+  setup_all do
+    Ring.Config.start_link()
+    {:ok, nil}
+  end
+
   before_each_bench _ do
-    {:ok, _pid} = HashRing.ETS.start_link(@name, @nodes, @replicas)
+    {:ok, _pid} = Ring.start_link(@name, @nodes, @replicas)
     {:ok, @name}
   end
 
@@ -20,17 +27,23 @@ defmodule ETSHashRingBench do
   end
 
   bench "find node" do
-    HashRing.ETS.find_node(bench_context, "1234254543")
+    Ring.find_node(bench_context, "1234254543")
     :ok
   end
 
   bench "find nodes (1)" do
-    HashRing.ETS.find_nodes(bench_context, "1234254543", 2)
+    Ring.find_nodes(bench_context, "1234254543", 2)
     :ok
   end
 
   bench "find nodes (2)" do
-    HashRing.ETS.find_nodes(bench_context, "1234254543", 3)
+    Ring.find_nodes(bench_context, "1234254543", 3)
     :ok
+  end
+
+  bench "regenerate ring & gc" do
+    Ring.set_nodes(bench_context, @nodes)
+    Ring.force_gc(bench_context)
+    nil
   end
 end
