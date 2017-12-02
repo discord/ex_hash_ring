@@ -9,7 +9,7 @@ defmodule HashRing.Utils do
   def hash(key), do: hash("#{key}")
 
   @spec gen_items(binary, integer) :: [{integer, binary}]
-  def gen_items([], _num_replicas), do: {}
+  def gen_items([], _num_replicas), do: []
   def gen_items(nodes, num_replicas) do
     gen_items(nodes, Enum.to_list(0..(num_replicas - 1)), [])
   end

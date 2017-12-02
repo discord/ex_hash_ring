@@ -1,5 +1,7 @@
 defmodule HashRing.ETS do
+  @default_num_replicas 512
   @default_ring_gen_gc_delay 10_000
+
   @type t :: __MODULE__
 
   use GenServer
@@ -14,20 +16,30 @@ defmodule HashRing.ETS do
             name: nil,
             pending_gcs: %{}
 
-  @spec child_spec(atom, Keyword.t) :: tuple
-  def child_spec(name, opts \\ []) do
-    import Supervisor.Spec, warn: false
-    opts = Keyword.put(opts, :name, name)
-    supervisor(__MODULE__, [name, opts])
-  end
+  def start_link(opts \\ []) do
+    nodes = Keyword.get(opts, :nodes, [])
+    num_replicas = Keyword.get(opts, :num_replicas, @default_num_replicas)
+    name = Keyword.get(opts, :name)
+    ets_table_name = Keyword.get(opts, :ets_table_name, name)
+    gen_opts = if name do
+      [name: name]
+    else
+      []
+    end
 
-  def start_link(name, nodes \\ [], num_replicas \\ 512) do
+    unless ets_table_name do
+      raise "An ets table name must be provided as a keyword option to HashRing.ETS.start_link/1"
+    end
+
+    GenServer.start_link(__MODULE__, {ets_table_name, nodes, num_replicas}, gen_opts)
+  end
+  def start_link(name, nodes, num_replicas \\ @default_num_replicas) do
     GenServer.start_link(__MODULE__, {name, nodes, num_replicas}, name: name)
   end
 
   @spec init({atom, [binary], integer}) :: t
   def init({name, nodes, num_replicas}) do
-    table = :ets.new(name, [
+    table = :ets.new(:ring, [
       :protected,
       :ordered_set,
       {:read_concurrency, true}
@@ -145,9 +157,9 @@ defmodule HashRing.ETS do
   end
   def handle_call(:force_gc, _from, %{pending_gcs: pending_gcs, table: table}=state) do
     ring_gens = for {ring_gen, timer_ref} <- pending_gcs do
-        Process.cancel_timer(timer_ref)
-        do_ring_gen_gc(table, ring_gen)
-        ring_gen
+      Process.cancel_timer(timer_ref)
+      do_ring_gen_gc(table, ring_gen)
+      ring_gen
     end
 
     {:reply, {:ok, ring_gens}, %{state | pending_gcs: %{}}}
@@ -186,17 +198,14 @@ defmodule HashRing.ETS do
     end)
     Config.set(name, self(), {table, new_ring_gen, length(nodes)})
 
-    schedule_gc(%{state | ring_gen: new_ring_gen}, ring_gen)
+    schedule_ring_gen_gc(%{state | ring_gen: new_ring_gen}, ring_gen)
   end
 
-  def schedule_gc(state, 0), do: state
-  def schedule_gc(%{pending_gcs: pending_gcs}=state, ring_gen) do
-      timer_ref = Process.send_after(self(), {:gc, ring_gen}, ring_gen_gc_delay())
-      %{state | pending_gcs: Map.put(pending_gcs, ring_gen, timer_ref)}
-  end
-
-  defp ring_gen_gc_delay() do
-    Application.get_env(:hash_ring, :ets_gc_delay, @default_ring_gen_gc_delay)
+  def schedule_ring_gen_gc(state, 0), do: state
+  def schedule_ring_gen_gc(%{pending_gcs: pending_gcs}=state, ring_gen) do
+    ring_gen_gc_delay = Application.get_env(:hash_ring, :ring_gen_gc_delay, @default_ring_gen_gc_delay)
+    timer_ref = Process.send_after(self(), {:gc, ring_gen}, ring_gen_gc_delay)
+    %{state | pending_gcs: Map.put(pending_gcs, ring_gen, timer_ref)}
   end
 
   defp do_ring_gen_gc(table, ring_gen) do

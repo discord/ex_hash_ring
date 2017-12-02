@@ -106,8 +106,8 @@ defmodule ETSHAshRingOperationsTest do
   end
 
   test "automatic ring gc", %{name: name} do
-    Application.put_env(:hash_ring, :ets_gc_delay, 50)
-    on_exit fn -> Application.delete_env(:hash_ring, :ets_gc_delay) end
+    Application.put_env(:hash_ring, :ring_gen_gc_delay, 50)
+    on_exit fn -> Application.delete_env(:hash_ring, :ring_gen_gc_delay) end
 
     {:ok, _} = Ring.remove_node(name, "c")
     assert Ring.get_ring_gen(name) == {:ok, 2}
@@ -121,6 +121,12 @@ defmodule ETSHAshRingOperationsTest do
   test "operations on nonexistent ring dont fail" do
     assert Ring.find_node(HashRingEtsTest.DoesNotExist, 1) == nil
     assert Ring.find_nodes(HashRingEtsTest.DoesNotExist, 1, 2) == []
+  end
+
+  test "HashRing.ETS.start_link/1" do
+    {:ok, _pid} = Ring.start_link(ets_table_name: TestModule.Foo, nodes: @nodes)
+    assert Ring.find_node(TestModule.Foo, 1) == "c"
+    assert Process.whereis(TestModule.Foo) == nil
   end
 
   defp count_ring_gen_entries(name, ring_gen) do
@@ -141,10 +147,10 @@ defmodule ETSHAshRingOperationsTest do
   end
   defp await(callback, attempts) do
     case callback.() do
-        true -> true
-        _ ->
-          Process.sleep(50)
-          await(callback, attempts - 1)
+      true -> true
+      _ ->
+        Process.sleep(50)
+        await(callback, attempts - 1)
     end
   end
 end
