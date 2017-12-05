@@ -5,7 +5,7 @@ defmodule HashRing.Mixfile do
     [
       app: :ex_hash_ring,
       version: "2.0.0",
-      elixir: "~> 1.5",
+      elixir: "~> 1.3",
       build_embedded: Mix.env == :prod,
       start_permanent: Mix.env == :prod,
       elixirc_paths: elixirc_paths(Mix.env),
