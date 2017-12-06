@@ -37,6 +37,24 @@ Find the node for a key.
 "b" = HashRing.find_node(ring, "key3")
 ```
 
+Additionally, you can also use `HashRing.ETS`, which holds the ring in an ETS table for fast access, if you need
+the ring across multiple processes.
+
+
+```elixir
+{:ok, pid} = HashRing.ETS.start_link(TheRing)
+{:ok, _nodes} = HashRing.ETS.add_node(pid, "a")
+{:ok, _nodes} = HashRing.ETS.add_node(pid, "b")
+```
+
+And then find a node for a key, using the ETS name provided:
+
+```elixir
+"a" = HashRing.ETS.find_node(TheRing, "key1")
+"b" = HashRing.ETS.find_node(TheRing, "key3")
+```
+
+
 ## License
 
 Hash Ring is released under [the MIT License](LICENSE).

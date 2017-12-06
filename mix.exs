@@ -4,10 +4,11 @@ defmodule HashRing.Mixfile do
   def project do
     [
       app: :ex_hash_ring,
-      version: "1.0.0",
+      version: "2.0.0",
       elixir: "~> 1.3",
       build_embedded: Mix.env == :prod,
       start_permanent: Mix.env == :prod,
+      elixirc_paths: elixirc_paths(Mix.env),
       deps: deps(),
       package: package()
    ]
@@ -15,7 +16,8 @@ defmodule HashRing.Mixfile do
 
   def application do
     [
-      applications: []
+      applications: [],
+      mod: {ExHashRing, []}
     ]
   end
 
@@ -24,6 +26,13 @@ defmodule HashRing.Mixfile do
       {:benchfella, "~> 0.3.0", only: :dev}
     ]
   end
+
+  defp elixirc_paths(:test) do
+    elixirc_paths(:dev) ++ ["test/support"]
+  end
+
+  defp elixirc_paths(_),
+    do: ["lib"]
 
   def package do
     [
