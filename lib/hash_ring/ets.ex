@@ -52,18 +52,18 @@ defmodule HashRing.ETS do
   end
 
   @spec set_nodes(atom, [binary]) :: {:ok, [binary]}
-  def set_nodes(name, nodes) do
-    GenServer.call(name, {:set_nodes, nodes})
+  def set_nodes(name, node_names) do
+    GenServer.call(name, {:set_nodes, node_names})
   end
 
   @spec add_node(atom, binary) :: {:ok, [binary]} | {:error, :node_exists}
-  def add_node(name, node) do
-    GenServer.call(name, {:add_node, node})
+  def add_node(name, node_name) do
+    GenServer.call(name, {:add_node, node_name})
   end
 
   @spec remove_node(atom, binary) :: {:ok, [binary]} | {:error, :node_exists}
-  def remove_node(name, node) do
-    GenServer.call(name, {:remove_node, node})
+  def remove_node(name, node_name) do
+    GenServer.call(name, {:remove_node, node_name})
   end
 
   @spec get_nodes(atom) :: {:ok, [binary]}
@@ -124,17 +124,17 @@ defmodule HashRing.ETS do
   def handle_call({:set_nodes, nodes}, _from, state) do
     {:reply, {:ok, nodes}, rebuild(%{state | nodes: nodes})}
   end
-  def handle_call({:add_node, node}, _from, %{nodes: nodes}=state) do
-    if node in nodes do
+  def handle_call({:add_node, node_name}, _from, %{nodes: nodes}=state) do
+    if node_name in nodes do
       {:reply, {:error, :node_exists}, state}
     else
-      nodes = [node|nodes]
+      nodes = [node_name|nodes]
       {:reply, {:ok, nodes}, rebuild(%{state | nodes: nodes})}
     end
   end
-  def handle_call({:remove_node, node}, _from, %{nodes: nodes}=state) do
-    if node in nodes do
-      nodes = nodes -- [node]
+  def handle_call({:remove_node, node_name}, _from, %{nodes: nodes}=state) do
+    if node_name in nodes do
+      nodes = nodes -- [node_name]
       {:reply, {:ok, nodes}, rebuild(%{state | nodes: nodes})}
     else
       {:reply, {:error, :node_not_exists}, state}
