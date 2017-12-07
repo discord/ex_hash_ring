@@ -39,10 +39,10 @@ defmodule HashRing.ETS.Config do
       {:reply, :ok, state}
     end
 
-    def handle_info({:DOWN, monitor_ref, :process, _pid, _reason}, %{monitored_pids: monitored_pids}=state) do
-       monitored_pids = case Map.pop(monitored_pids, monitor_ref) do
+    def handle_info({:DOWN, monitor_ref, :process, pid, _reason}, %{monitored_pids: monitored_pids}=state) do
+       monitored_pids = case Map.pop(monitored_pids, pid) do
          {nil, monitored_pids} -> monitored_pids
-         {name, monitored_pids} ->
+         {{^monitor_ref, name}, monitored_pids} ->
             :ets.delete(__MODULE__, name)
             monitored_pids
        end
@@ -51,7 +51,10 @@ defmodule HashRing.ETS.Config do
     end
 
     defp monitor_ring(%{monitored_pids: monitored_pids}=state, name, owner_pid) do
-      monitor_ref = Process.monitor(owner_pid)
-      %{state | monitored_pids: Map.put(monitored_pids, monitor_ref, name)}
+      monitored_pids = Map.put_new_lazy(monitored_pids, owner_pid, fn ->
+        monitor_ref = Process.monitor(owner_pid)
+        {monitor_ref, name}
+      end)
+      %{state | monitored_pids: monitored_pids}
     end
 end
