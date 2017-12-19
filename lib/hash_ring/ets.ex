@@ -87,24 +87,25 @@ defmodule HashRing.ETS do
     end
   end
 
-  @spec find_node(atom, binary | integer) :: binary | {:error, atom}
+  @spec find_node(atom, binary | integer) :: {:ok, binary} | {:error, atom}
   def find_node(name, key) do
     with {:ok, config} <- Config.get(name),
          {_, node} <- find_next_highest_item(config, Utils.hash(key)) do
-      node
+      {:ok, node}
     else
       {:error, error} -> {:error, error}
       _ -> {:error, :invalid_ring}
     end
   end
 
-  @spec find_nodes(atom, binary | integer, integer) :: [binary]
+  @spec find_nodes(atom, binary | integer, integer) :: {:ok, [binary]} | {:error, atom}
   def find_nodes(name, key, num) do
     with {:ok, {_, _, num_nodes}=config} <- Config.get(name),
          nodes <- do_find_nodes(config, min(num, num_nodes), Utils.hash(key), []) do
-      nodes
+      {:ok, nodes}
     else
-      _ -> []
+      {:error, error} -> {:error, error}
+      _ -> {:error, :invalid_ring}
     end
   end
 

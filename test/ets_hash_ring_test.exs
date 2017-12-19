@@ -16,10 +16,10 @@ defmodule ETSHashRingTest do
     describe "ets hash ring, replicas=#{num_replicas}" do
       for key <- Harness.keys() do
         test "find_node key=#{key}", %{rings: rings} do
-          assert Ring.find_node(rings[unquote(num_replicas)], unquote(key)) == Harness.find_node(unquote(num_replicas), unquote(key))
+          assert Ring.find_node(rings[unquote(num_replicas)], unquote(key)) == {:ok, Harness.find_node(unquote(num_replicas), unquote(key))}
         end
         test "find_nodes key=#{key} num=#{Harness.num()}", %{rings: rings} do
-          assert Ring.find_nodes(rings[unquote(num_replicas)], unquote(key), Harness.num()) == Harness.find_nodes(unquote(num_replicas), unquote(key), Harness.num())
+          assert Ring.find_nodes(rings[unquote(num_replicas)], unquote(key), Harness.num()) == {:ok, Harness.find_nodes(unquote(num_replicas), unquote(key), Harness.num())}
         end
       end
     end
@@ -52,7 +52,8 @@ defmodule ETSHAshRingOperationsTest do
 
     # Assert that the ring is also re-generated at this point.
     assert Ring.get_ring_gen(name) == {:ok, 2}
-    assert Ring.find_node(name, 1) in new_nodes
+    {:ok, node_name} = Ring.find_node(name, 1)
+    assert node_name in new_nodes
   end
 
   test "add node", %{name: name} do
@@ -61,7 +62,7 @@ defmodule ETSHAshRingOperationsTest do
     {:ok, ^expected_nodes} = Ring.get_nodes(name)
     # Select a node that should now be c.
     assert Ring.get_ring_gen(name) == {:ok, 2}
-    assert Ring.find_node(name, 1) == "c"
+    assert Ring.find_node(name, 1) == {:ok, "c"}
   end
 
   test "remmove node", %{name: name} do
@@ -70,7 +71,7 @@ defmodule ETSHAshRingOperationsTest do
     {:ok, ^expected_nodes} = Ring.get_nodes(name)
     # Select a node that should now be b.
     assert Ring.get_ring_gen(name) == {:ok, 2}
-    assert Ring.find_node(name, 1) == "b"
+    assert Ring.find_node(name, 1) == {:ok, "b"}
   end
 
   test "ets config will remove config", %{name: name} do
@@ -120,12 +121,12 @@ defmodule ETSHAshRingOperationsTest do
 
   test "operations on nonexistent ring fail" do
     assert Ring.find_node(HashRingEtsTest.DoesNotExist, 1) == {:error, :no_ring}
-    assert Ring.find_nodes(HashRingEtsTest.DoesNotExist, 1, 2) == []
+    assert Ring.find_nodes(HashRingEtsTest.DoesNotExist, 1, 2) == {:error, :no_ring}
   end
 
   test "HashRing.ETS.start_link/1" do
     {:ok, _pid} = Ring.start_link(TestModule.Foo, nodes: @nodes)
-    assert Ring.find_node(TestModule.Foo, 1) == "c"
+    assert Ring.find_node(TestModule.Foo, 1) == {:ok, "c"}
     assert Process.whereis(TestModule.Foo) == nil
   end
 
