@@ -74,9 +74,9 @@ defmodule ETSHAshRingOperationsTest do
   end
 
   test "ets config will remove config", %{name: name} do
-    assert Ring.Config.get(name) != :error
+    refute Ring.Config.get(name) == {:error, :no_ring}
     assert Ring.stop(name) == :ok
-    assert await(fn -> Ring.Config.get(name) == :error end)
+    assert await(fn -> Ring.Config.get(name) == {:error, :no_ring} end)
   end
 
   test "ring gen gc happens", %{name: name} do
@@ -118,8 +118,8 @@ defmodule ETSHAshRingOperationsTest do
     assert ring_ets_table_size(name) == 1024
   end
 
-  test "operations on nonexistent ring dont fail" do
-    assert Ring.find_node(HashRingEtsTest.DoesNotExist, 1) == nil
+  test "operations on nonexistent ring fail" do
+    assert Ring.find_node(HashRingEtsTest.DoesNotExist, 1) == {:error, :no_ring}
     assert Ring.find_nodes(HashRingEtsTest.DoesNotExist, 1, 2) == []
   end
 

@@ -29,7 +29,7 @@ defmodule HashRing.ETS.Config do
     def get(name) do
       case :ets.lookup(__MODULE__, name) do
         [{^name, config}] -> {:ok, config}
-        _ -> :error
+        _ -> {:error, :no_ring}
       end
     end
 
