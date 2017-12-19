@@ -100,7 +100,7 @@ defmodule HashRing.ETS do
 
   @spec find_nodes(atom, binary | integer, integer) :: {:ok, [binary]} | {:error, atom}
   def find_nodes(name, key, num) do
-    with {:ok, {_, _, num_nodes}=config} <- Config.get(name),
+    with {:ok, {_, _, num_nodes}=config} when num_nodes > 0 <- Config.get(name),
          nodes <- do_find_nodes(config, min(num, num_nodes), Utils.hash(key), []) do
       {:ok, nodes}
     else

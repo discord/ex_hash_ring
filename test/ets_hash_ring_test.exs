@@ -130,6 +130,12 @@ defmodule ETSHAshRingOperationsTest do
     assert Process.whereis(TestModule.Foo) == nil
   end
 
+  test "operations on empty ring fail" do
+    {:ok, _pid} = Ring.start_link(HashRingETSTest.Empty, nodes: [])
+    assert Ring.find_node(HashRingETSTest.Empty, 1) == {:error, :invalid_ring}
+    assert Ring.find_nodes(HashRingETSTest.Empty, 1, 2) == {:error, :invalid_ring}
+  end
+
   defp count_ring_gen_entries(name, ring_gen) do
     {:ok, {table, _, _}} = Ring.Config.get(name)
     :ets.tab2list(table)
