@@ -6,7 +6,7 @@
 A pure Elixir consistent hash ring implemention based on the excellent [C hash-ring lib](https://github.com/chrismoos/hash-ring)
 by [Chris Moos](https://github.com/chrismoos).
 
-The hashring provides fast lookup, but ring creation isn't optimized. It deliberately does not provide encapsulation
+The hashring provides fast lookup, but ring creation isn't optimized (though it's not slow). It deliberately does not provide encapsulation
 within a `GenServer` and leaves that up to the user. At [Discord](https://discordapp.com) we found using a `GenServer` for such
 frequently accessed data proved to be overwhelming so we rewrote the hash ring in pure Elixir and paired it with
 [FastGlobal](https://github.com/discordapp/fastglobal) to allow the calling process to use it's CPU time to interact with
