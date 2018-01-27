@@ -21,8 +21,10 @@ defmodule HashRing.Utils do
   defp do_gen_items([], items) do
     Enum.sort(items, &(elem(&1, 0) < elem(&2, 0)))
   end
-  defp do_gen_items([{node, num_replicas}|nodes], items) do
-    items = Enum.reduce(0..(num_replicas - 1), items, &([{hash("#{node}#{&1}"), node}|&2]))
+  defp do_gen_items([{node, num_replicas} | nodes], items) do
+    items = Enum.reduce(0..(num_replicas - 1), items, fn replica, acc ->
+      [{hash("#{node}#{replica}"), node} | acc]
+    end)
     do_gen_items(nodes, items)
   end
 end

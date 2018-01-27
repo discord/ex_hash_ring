@@ -139,7 +139,7 @@ defmodule HashRing.ETS do
     if has_node_with_name?(nodes, node_name) do
       {:reply, {:error, :node_exists}, state}
     else
-      nodes = [{node_name, num_replicas}|nodes]
+      nodes = [{node_name, num_replicas} | nodes]
       {:reply, {:ok, nodes}, rebuild(%{state | nodes: nodes})}
     end
   end
@@ -234,7 +234,7 @@ defmodule HashRing.ETS do
   end
 
   defp has_node_with_name?(nodes, node_name) do
-    Enum.any?(nodes, fn {existing_node, _} -> existing_node == node_name end)
+    Enum.any?(nodes, &match?({^node_name, _}, &1))
   end
 
   defp transform_nodes(nodes, default_num_replicas) do
