@@ -6,7 +6,7 @@ defmodule ETSHashRingTest do
   setup_all do
     rings = for num_replicas <- Harness.replicas(), into: %{} do
       name = :"HashRingETSTest.Replicas#{num_replicas}"
-      {:ok, _pid} = Ring.start_link(name, nodes: Harness.nodes(), num_replicas: num_replicas, named: true)
+      {:ok, _pid} = Ring.start_link(name, nodes: Harness.nodes(), default_num_replicas: num_replicas, named: true)
       {num_replicas, name}
     end
     {:ok, rings: rings}
@@ -26,10 +26,11 @@ defmodule ETSHashRingTest do
   end
 end
 
-defmodule ETSHAshRingOperationsTest do
+defmodule ETSHashRingOperationsTest do
   use ExUnit.Case
   alias HashRing.ETS, as: Ring
 
+  @default_num_replicas 512
   @nodes ["a", "b", "c"]
 
   setup do
@@ -46,9 +47,24 @@ defmodule ETSHAshRingOperationsTest do
 
   test "set nodes", %{name: name} do
     new_nodes = ["d", "e", "f"]
+    new_nodes_with_replicas = for node <- new_nodes, do: {node, @default_num_replicas}
     {:ok, _} = Ring.set_nodes(name, new_nodes)
-    {:ok, nodes} = Ring.get_nodes(name)
-    assert nodes == new_nodes
+    {:ok, ^new_nodes} = Ring.get_nodes(name)
+    {:ok, ^new_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+
+    # Assert that the ring is also re-generated at this point.
+    assert Ring.get_ring_gen(name) == {:ok, 2}
+    {:ok, node_name} = Ring.find_node(name, 1)
+    assert node_name in new_nodes
+  end
+
+  test "set nodes with replicas", %{name: name} do
+    new_nodes = ["d", "e", "f"]
+    new_nodes_with_replicas = [{"d", 512}, {"e", 200}, {"f", 512}]
+
+    {:ok, _} = Ring.set_nodes(name, new_nodes_with_replicas)
+    {:ok, ^new_nodes} = Ring.get_nodes(name)
+    {:ok, ^new_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
 
     # Assert that the ring is also re-generated at this point.
     assert Ring.get_ring_gen(name) == {:ok, 2}
@@ -58,8 +74,24 @@ defmodule ETSHAshRingOperationsTest do
 
   test "add node", %{name: name} do
     expected_nodes = ["d" | @nodes]
+    expected_nodes_with_replicas = for node <- expected_nodes, do: {node, @default_num_replicas}
+
     {:ok, _} = Ring.add_node(name, "d")
     {:ok, ^expected_nodes} = Ring.get_nodes(name)
+    {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+    # Select a node that should now be c.
+    assert Ring.get_ring_gen(name) == {:ok, 2}
+    assert Ring.find_node(name, 1) == {:ok, "c"}
+  end
+
+  test "add node with_replicas", %{name: name} do
+    expected_nodes = ["d" | @nodes]
+    expected_nodes_with_replicas = for node <- @nodes, do: {node, @default_num_replicas}
+    expected_nodes_with_replicas = [{"d", 200} | expected_nodes_with_replicas]
+
+    {:ok, _} = Ring.add_node(name, "d", 200)
+    {:ok, ^expected_nodes} = Ring.get_nodes(name)
+    {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
     # Select a node that should now be c.
     assert Ring.get_ring_gen(name) == {:ok, 2}
     assert Ring.find_node(name, 1) == {:ok, "c"}
@@ -67,8 +99,10 @@ defmodule ETSHAshRingOperationsTest do
 
   test "remmove node", %{name: name} do
     expected_nodes = @nodes -- ["c"]
+    expected_nodes_with_replicas = for node <- expected_nodes, do: {node, @default_num_replicas}
     {:ok, _} = Ring.remove_node(name, "c")
     {:ok, ^expected_nodes} = Ring.get_nodes(name)
+    {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
     # Select a node that should now be b.
     assert Ring.get_ring_gen(name) == {:ok, 2}
     assert Ring.find_node(name, 1) == {:ok, "b"}

@@ -8,17 +8,23 @@ defmodule HashRing.Utils do
   end
   def hash(key), do: hash("#{key}")
 
+  @spec gen_items([{binary, integer}]) :: [{integer, binary}]
   @spec gen_items(binary, integer) :: [{integer, binary}]
+  def gen_items([]), do: []
+  def gen_items(nodes), do: do_gen_items(nodes, [])
   def gen_items([], _num_replicas), do: []
-  def gen_items(nodes, num_replicas) do
-    gen_items(nodes, Enum.to_list(0..(num_replicas - 1)), [])
+  def gen_items(nodes, default_num_replicas) do
+    nodes = for node <- nodes, do: {node, default_num_replicas}
+    gen_items(nodes)
   end
 
-  defp gen_items([], _replicas, items) do
+  defp do_gen_items([], items) do
     Enum.sort(items, &(elem(&1, 0) < elem(&2, 0)))
   end
-  defp gen_items([node|nodes], replicas, items) do
-    items = Enum.reduce(replicas, items, &([{hash("#{node}#{&1}"), node}|&2]))
-    gen_items(nodes, replicas, items)
+  defp do_gen_items([{node, num_replicas} | nodes], items) do
+    items = Enum.reduce(0..(num_replicas - 1), items, fn replica, acc ->
+      [{hash("#{node}#{replica}"), node} | acc]
+    end)
+    do_gen_items(nodes, items)
   end
 end
