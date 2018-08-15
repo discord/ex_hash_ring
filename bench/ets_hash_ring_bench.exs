@@ -1,6 +1,6 @@
 defmodule ETSHashRingBench do
   use Benchfella
-  alias HashRing.ETS, as: Ring
+  alias ExHashRing.HashRing.ETS, as: Ring
 
 
   @nodes [

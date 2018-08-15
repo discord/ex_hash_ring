@@ -1,10 +1,10 @@
-defmodule HashRing.Mixfile do
+defmodule ExHashRing.HashRing.Mixfile do
   use Mix.Project
 
   def project do
     [
       app: :ex_hash_ring,
-      version: "2.0.0",
+      version: "3.0.0",
       elixir: "~> 1.3",
       build_embedded: Mix.env == :prod,
       start_permanent: Mix.env == :prod,

@@ -1,10 +1,10 @@
-defmodule HashRing do
+defmodule ExHashRing.HashRing do
   @compile :native
 
   @type t :: __MODULE__
 
   use Bitwise
-  alias HashRing.Utils
+  alias ExHashRing.HashRing.Utils
 
   defstruct num_replicas: 0, nodes: [], items: {}
 

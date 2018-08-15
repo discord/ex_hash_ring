@@ -1,4 +1,4 @@
-defmodule HashRing.ETS do
+defmodule ExHashRing.HashRing.ETS do
   @default_num_replicas 512
   @default_ring_gen_gc_delay 10_000
 
@@ -6,8 +6,8 @@ defmodule HashRing.ETS do
 
   use GenServer
 
-  alias HashRing.Utils
-  alias HashRing.ETS.Config
+  alias ExHashRing.HashRing.Utils
+  alias ExHashRing.HashRing.ETS.Config
 
   defstruct default_num_replicas: @default_num_replicas,
             nodes: [],
