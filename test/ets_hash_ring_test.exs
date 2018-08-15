@@ -1,7 +1,7 @@
 defmodule ETSHashRingTest do
   use ExUnit.Case
   alias HashRingTest.Support.Harness
-  alias HashRing.ETS, as: Ring
+  alias ExHashRing.HashRing.ETS, as: Ring
 
   setup_all do
     rings = for num_replicas <- Harness.replicas(), into: %{} do
@@ -28,7 +28,7 @@ end
 
 defmodule ETSHashRingOperationsTest do
   use ExUnit.Case
-  alias HashRing.ETS, as: Ring
+  alias ExHashRing.HashRing.ETS, as: Ring
 
   @default_num_replicas 512
   @nodes ["a", "b", "c"]
@@ -158,7 +158,7 @@ defmodule ETSHashRingOperationsTest do
     assert Ring.find_nodes(HashRingEtsTest.DoesNotExist, 1, 2) == {:error, :no_ring}
   end
 
-  test "HashRing.ETS.start_link/1" do
+  test "ExHashRing.HashRing.ETS.start_link/1" do
     {:ok, _pid} = Ring.start_link(TestModule.Foo, nodes: @nodes)
     assert Ring.find_node(TestModule.Foo, 1) == {:ok, "c"}
     assert Process.whereis(TestModule.Foo) == nil

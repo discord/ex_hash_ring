@@ -1,4 +1,4 @@
-defmodule HashRing.Utils do
+defmodule ExHashRing.HashRing.Utils do
   @compile :native
 
   @spec hash(atom | binary | integer) :: integer

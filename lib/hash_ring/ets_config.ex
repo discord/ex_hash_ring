@@ -1,4 +1,4 @@
-defmodule HashRing.ETS.Config do
+defmodule ExHashRing.HashRing.ETS.Config do
     use GenServer
 
     @type ring_gen :: integer

@@ -1,5 +1,6 @@
 defmodule HashRingBench do
   use Benchfella
+  alias ExHashRing.HashRing
 
   @nodes [
     "hash-ring-1-1",

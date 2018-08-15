@@ -18,13 +18,15 @@ Add it to `mix.exs`.
 
 ```elixir
 defp deps do
-  [{:ex_hash_ring, "~> 1.0"}]
+  [{:ex_hash_ring, "~> 3.0"}]
 end
 ```
 
 Create a new HashRing.
 
 ```elixir
+alias ExHashRing.HashRing
+
 ring = HashRing.new
 {:ok, ring} = HashRing.add_node(ring, "a")
 {:ok, ring} = HashRing.add_node(ring, "b")
@@ -37,7 +39,7 @@ Find the node for a key.
 "b" = HashRing.find_node(ring, "key3")
 ```
 
-Additionally, you can also use `HashRing.ETS`, which holds the ring in an ETS table for fast access, if you need
+Additionally, you can also use `ExHashRing.HashRing.ETS`, which holds the ring in an ETS table for fast access, if you need
 the ring across multiple processes.
 
 

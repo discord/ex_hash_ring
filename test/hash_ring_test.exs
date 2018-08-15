@@ -1,6 +1,7 @@
 defmodule HashRingTest do
   use ExUnit.Case
   alias HashRingTest.Support.Harness
+  alias ExHashRing.HashRing
 
   setup_all do
     rings = for num_replicas <- Harness.replicas(), into: %{} do
