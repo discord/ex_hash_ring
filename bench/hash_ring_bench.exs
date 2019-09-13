@@ -6,7 +6,7 @@ defmodule HashRingBench do
     "hash-ring-1-1",
     "hash-ring-1-2",
     "hash-ring-1-3",
-    "hash-ring-1-4",
+    "hash-ring-1-4"
   ]
   @replicas 512
 
