@@ -181,7 +181,11 @@ defmodule ETSHashRingOperationsTest do
   end
 
   defp count_ring_gen_entries(name, ring_gen) do
-    {:ok, {table, _, _}} = Ring.Config.get(name)
+    table =
+      case Ring.Config.get(name) do
+        {:ok, {table, _, _}} -> table
+        {:ok, {table, _, _, _}} -> table
+      end
 
     :ets.tab2list(table)
     |> Enum.filter(fn {{ring_gen_, _}, _} -> ring_gen_ == ring_gen end)
@@ -189,7 +193,12 @@ defmodule ETSHashRingOperationsTest do
   end
 
   defp ring_ets_table_size(name) do
-    {:ok, {table, _, _}} = Ring.Config.get(name)
+    table =
+      case Ring.Config.get(name) do
+        {:ok, {table, _, _}} -> table
+        {:ok, {table, _, _, _}} -> table
+      end
+
     :ets.info(table, :size)
   end
 

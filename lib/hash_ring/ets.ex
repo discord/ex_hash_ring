@@ -1,8 +1,17 @@
 defmodule ExHashRing.HashRing.ETS do
+  @compile {:inline,
+            do_find_nodes: 6,
+            find_next_highest_item: 4,
+            find_node_inner: 4,
+            find_node: 2,
+            find_nodes: 3,
+            find_override: 2}
+
   @default_num_replicas 512
   @default_ring_gen_gc_delay 10_000
 
   @type t :: __MODULE__
+  @type override_map :: %{atom => binary}
 
   use GenServer
 
@@ -11,6 +20,7 @@ defmodule ExHashRing.HashRing.ETS do
 
   defstruct default_num_replicas: @default_num_replicas,
             nodes: [],
+            overrides: %{},
             table: nil,
             ring_gen: 0,
             name: nil,
@@ -19,6 +29,7 @@ defmodule ExHashRing.HashRing.ETS do
   def start_link(name, opts \\ []) do
     named = Keyword.get(opts, :named, false)
     nodes = Keyword.get(opts, :nodes, [])
+    overrides = Keyword.get(opts, :overrides, %{})
     num_replicas = Keyword.get(opts, :default_num_replicas, @default_num_replicas)
 
     gen_opts =
@@ -28,11 +39,11 @@ defmodule ExHashRing.HashRing.ETS do
         []
       end
 
-    GenServer.start_link(__MODULE__, {name, nodes, num_replicas}, gen_opts)
+    GenServer.start_link(__MODULE__, {name, nodes, num_replicas, overrides}, gen_opts)
   end
 
-  @spec init({atom, [binary], integer}) :: t
-  def init({name, nodes, default_num_replicas}) do
+  @spec init({atom, [binary], integer, override_map}) :: {:ok, t}
+  def init({name, nodes, default_num_replicas, overrides}) do
     table =
       :ets.new(:ring, [
         :protected,
@@ -45,6 +56,7 @@ defmodule ExHashRing.HashRing.ETS do
         table: table,
         default_num_replicas: default_num_replicas,
         nodes: transform_nodes(nodes, default_num_replicas),
+        overrides: overrides,
         name: name
       })
 
@@ -65,9 +77,19 @@ defmodule ExHashRing.HashRing.ETS do
     GenServer.call(name, {:add_node, node_name, num_replicas})
   end
 
-  @spec remove_node(atom, binary) :: {:ok, [{binary, integer}]} | {:error, :node_exists}
+  @spec remove_node(atom, binary) :: {:ok, [{binary, integer}]} | {:error, :node_not_exists}
   def remove_node(name, node_name) do
     GenServer.call(name, {:remove_node, node_name})
+  end
+
+  @spec set_overrides(atom, override_map) :: {:ok, override_map}
+  def set_overrides(name, overrides) do
+    GenServer.call(name, {:set_overrides, overrides})
+  end
+
+  @spec get_overrides(atom) :: {:ok, override_map}
+  def get_overrides(name) do
+    GenServer.call(name, :get_overrides)
   end
 
   @spec get_nodes(atom) :: {:ok, [binary]}
@@ -75,7 +97,7 @@ defmodule ExHashRing.HashRing.ETS do
     GenServer.call(name, :get_nodes)
   end
 
-  @spec get_nodes(atom) :: {:ok, [{binary, integer}]}
+  @spec get_nodes_with_replicas(atom) :: {:ok, [{binary, integer}]}
   def get_nodes_with_replicas(name) do
     GenServer.call(name, :get_nodes_with_replicas)
   end
@@ -92,46 +114,91 @@ defmodule ExHashRing.HashRing.ETS do
 
   @spec get_ring_gen(atom) :: {:ok, integer} | :error
   def get_ring_gen(name) do
-    with {:ok, {_, ring_gen, _}} <- Config.get(name) do
-      {:ok, ring_gen}
+    case Config.get(name) do
+      {:ok, {_, ring_gen, _}} -> {:ok, ring_gen}
+      {:ok, {_, ring_gen, _, _}} -> {:ok, ring_gen}
+      x -> x
     end
   end
 
   @spec find_node(atom, binary | integer) :: {:ok, binary} | {:error, atom}
   def find_node(name, key) do
-    with {:ok, config} <- Config.get(name),
-         {_, node} <- find_next_highest_item(config, Utils.hash(key)) do
-      {:ok, node}
-    else
-      {:error, error} -> {:error, error}
+    case Config.get(name) do
+      {:ok, {table, gen, num_nodes}} when num_nodes > 0 ->
+        find_node_inner(table, gen, num_nodes, key)
+
+      {:ok, {table, gen, num_nodes, overrides}} when num_nodes > 0 ->
+        case find_override(overrides, key) do
+          nil -> find_node_inner(table, gen, num_nodes, key)
+          override -> {:ok, override}
+        end
+
+      {:error, error} ->
+        {:error, error}
+
+      _ ->
+        {:error, :invalid_ring}
+    end
+  end
+
+  defp find_node_inner(table, gen, num_nodes, key) do
+    hash = Utils.hash(key)
+
+    case find_next_highest_item(table, gen, num_nodes, hash) do
+      {_, node} -> {:ok, node}
       _ -> {:error, :invalid_ring}
     end
   end
 
   @spec find_nodes(atom, binary | integer, integer) :: {:ok, [binary]} | {:error, atom}
   def find_nodes(name, key, num) do
-    with {:ok, {_, _, num_nodes} = config} when num_nodes > 0 <- Config.get(name),
-         nodes <- do_find_nodes(config, min(num, num_nodes), Utils.hash(key), []) do
-      {:ok, nodes}
-    else
-      {:error, error} -> {:error, error}
-      _ -> {:error, :invalid_ring}
+    hash = Utils.hash(key)
+
+    case Config.get(name) do
+      {:ok, {table, gen, num_nodes}} when num_nodes > 0 ->
+        remaining = min(num, num_nodes)
+        nodes = do_find_nodes(table, gen, num_nodes, remaining, hash, [])
+
+        {:ok, nodes}
+
+      {:ok, {table, gen, num_nodes, overrides}} when num_nodes > 0 and num > 0 ->
+        nodes =
+          case find_override(overrides, key) do
+            nil ->
+              remaining = min(num, num_nodes)
+              do_find_nodes(table, gen, num_nodes, remaining, hash, [])
+
+            override ->
+              remaining = min(num - 1, num_nodes)
+              do_find_nodes(table, gen, num_nodes, remaining, hash, [override])
+          end
+
+        {:ok, nodes}
+
+      {:ok, {_, _, num_nodes, _}} when num_nodes > 0 and num == 0 ->
+        {:ok, []}
+
+      {:error, error} ->
+        {:error, error}
+
+      _ ->
+        {:error, :invalid_ring}
     end
   end
 
   ## Private
 
-  defp do_find_nodes(_config, 0, _hash, nodes) do
+  defp do_find_nodes(_table, _gen, _num_nodes, 0, _hash, nodes) do
     Enum.reverse(nodes)
   end
 
-  defp do_find_nodes(config, remaining, hash, nodes) do
-    {number, node} = find_next_highest_item(config, hash)
+  defp do_find_nodes(table, gen, num_nodes, remaining, hash, nodes) do
+    {number, node} = find_next_highest_item(table, gen, num_nodes, hash)
 
     if node in nodes do
-      do_find_nodes(config, remaining, number, nodes)
+      do_find_nodes(table, gen, num_nodes, remaining, number, nodes)
     else
-      do_find_nodes(config, remaining - 1, number, [node | nodes])
+      do_find_nodes(table, gen, num_nodes, remaining - 1, number, [node | nodes])
     end
   end
 
@@ -168,6 +235,14 @@ defmodule ExHashRing.HashRing.ETS do
     else
       {:reply, {:error, :node_not_exists}, state}
     end
+  end
+
+  def handle_call({:set_overrides, overrides}, _from, state) do
+    {:reply, {:ok, overrides}, rebuild(%{state | overrides: overrides})}
+  end
+
+  def handle_call(:get_overrides, _from, %{overrides: overrides} = state) do
+    {:reply, {:ok, overrides}, state}
   end
 
   def handle_call(:get_nodes, _from, %{nodes: nodes} = state) do
@@ -223,7 +298,10 @@ defmodule ExHashRing.HashRing.ETS do
     {:noreply, %{state | pending_gcs: pending_gcs}}
   end
 
-  defp rebuild(%{nodes: nodes, name: name, table: table, ring_gen: ring_gen} = state) do
+  defp rebuild(
+         %{nodes: nodes, name: name, table: table, ring_gen: ring_gen, overrides: overrides} =
+           state
+       ) do
     new_ring_gen = ring_gen + 1
 
     :ets.insert(
@@ -233,7 +311,14 @@ defmodule ExHashRing.HashRing.ETS do
       end
     )
 
-    Config.set(name, self(), {table, new_ring_gen, length(nodes)})
+    config =
+      if map_size(overrides) > 0 do
+        {table, new_ring_gen, length(nodes), overrides}
+      else
+        {table, new_ring_gen, length(nodes)}
+      end
+
+    Config.set(name, self(), config)
 
     schedule_ring_gen_gc(%{state | ring_gen: new_ring_gen}, ring_gen)
   end
@@ -253,11 +338,18 @@ defmodule ExHashRing.HashRing.ETS do
     :ok
   end
 
-  defp find_next_highest_item({_table, _ring_gen, 0}, _hash) do
+  def find_override(overrides, key) do
+    case overrides do
+      %{^key => value} -> value
+      _ -> nil
+    end
+  end
+
+  defp find_next_highest_item(_table, _ring_gen, 0, _hash) do
     nil
   end
 
-  defp find_next_highest_item({table, ring_gen, _num_nodes}, hash) do
+  defp find_next_highest_item(table, ring_gen, _num_nodes, hash) do
     key =
       case :ets.next(table, {ring_gen, hash}) do
         {^ring_gen, _number} = key -> key

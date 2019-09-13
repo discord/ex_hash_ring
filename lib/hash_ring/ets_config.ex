@@ -3,13 +3,16 @@ defmodule ExHashRing.HashRing.ETS.Config do
 
   @type ring_gen :: integer
   @type num_nodes :: integer
-  @type config :: {reference, ring_gen, num_nodes}
+  @type overrides :: %{atom => binary}
+  @type config :: {reference, ring_gen, num_nodes} | {reference, ring_gen, num_nodes, overrides}
+
   defstruct monitored_pids: %{}
 
   def start_link() do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
   end
 
+  @spec init(any) :: {:ok, ExHashRing.HashRing.ETS.Config.t()}
   def init(_) do
     :ets.new(__MODULE__, [
       :protected,
@@ -26,7 +29,7 @@ defmodule ExHashRing.HashRing.ETS.Config do
     GenServer.call(__MODULE__, {:set, name, owner_pid, config})
   end
 
-  @spec get(atom) :: {:ok, config} | :error
+  @spec get(atom) :: {:ok, config} | {:error, :no_ring}
   def get(name) do
     case :ets.lookup(__MODULE__, name) do
       [{^name, config}] -> {:ok, config}
