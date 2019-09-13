@@ -4,11 +4,20 @@ defmodule ETSHashRingTest do
   alias ExHashRing.HashRing.ETS, as: Ring
 
   setup_all do
-    rings = for num_replicas <- Harness.replicas(), into: %{} do
-      name = :"HashRingETSTest.Replicas#{num_replicas}"
-      {:ok, _pid} = Ring.start_link(name, nodes: Harness.nodes(), default_num_replicas: num_replicas, named: true)
-      {num_replicas, name}
-    end
+    rings =
+      for num_replicas <- Harness.replicas(), into: %{} do
+        name = :"HashRingETSTest.Replicas#{num_replicas}"
+
+        {:ok, _pid} =
+          Ring.start_link(name,
+            nodes: Harness.nodes(),
+            default_num_replicas: num_replicas,
+            named: true
+          )
+
+        {num_replicas, name}
+      end
+
     {:ok, rings: rings}
   end
 
@@ -16,10 +25,13 @@ defmodule ETSHashRingTest do
     describe "ets hash ring, replicas=#{num_replicas}" do
       for key <- Harness.keys() do
         test "find_node key=#{key}", %{rings: rings} do
-          assert Ring.find_node(rings[unquote(num_replicas)], unquote(key)) == {:ok, Harness.find_node(unquote(num_replicas), unquote(key))}
+          assert Ring.find_node(rings[unquote(num_replicas)], unquote(key)) ==
+                   {:ok, Harness.find_node(unquote(num_replicas), unquote(key))}
         end
+
         test "find_nodes key=#{key} num=#{Harness.num()}", %{rings: rings} do
-          assert Ring.find_nodes(rings[unquote(num_replicas)], unquote(key), Harness.num()) == {:ok, Harness.find_nodes(unquote(num_replicas), unquote(key), Harness.num())}
+          assert Ring.find_nodes(rings[unquote(num_replicas)], unquote(key), Harness.num()) ==
+                   {:ok, Harness.find_nodes(unquote(num_replicas), unquote(key), Harness.num())}
         end
       end
     end
@@ -118,7 +130,6 @@ defmodule ETSHashRingOperationsTest do
     {:ok, _} = Ring.remove_node(name, "c")
     assert Ring.get_ring_gen(name) == {:ok, 2}
 
-
     assert Ring.force_gc(name, 1) == :ok
     assert Ring.force_gc(name, 1) == {:error, :not_pending}
 
@@ -131,7 +142,6 @@ defmodule ETSHashRingOperationsTest do
     {:ok, _} = Ring.remove_node(name, "c")
     assert Ring.get_ring_gen(name) == {:ok, 2}
 
-
     assert Ring.force_gc(name) == {:ok, [1]}
     assert Ring.force_gc(name) == {:ok, []}
 
@@ -142,7 +152,7 @@ defmodule ETSHashRingOperationsTest do
 
   test "automatic ring gc", %{name: name} do
     Application.put_env(:hash_ring, :ring_gen_gc_delay, 50)
-    on_exit fn -> Application.delete_env(:hash_ring, :ring_gen_gc_delay) end
+    on_exit(fn -> Application.delete_env(:hash_ring, :ring_gen_gc_delay) end)
 
     {:ok, _} = Ring.remove_node(name, "c")
     assert Ring.get_ring_gen(name) == {:ok, 2}
@@ -172,9 +182,10 @@ defmodule ETSHashRingOperationsTest do
 
   defp count_ring_gen_entries(name, ring_gen) do
     {:ok, {table, _, _}} = Ring.Config.get(name)
+
     :ets.tab2list(table)
-      |> Enum.filter(fn {{ring_gen_, _}, _} -> ring_gen_ == ring_gen end)
-      |> Enum.count
+    |> Enum.filter(fn {{ring_gen_, _}, _} -> ring_gen_ == ring_gen end)
+    |> Enum.count()
   end
 
   defp ring_ets_table_size(name) do
@@ -183,9 +194,11 @@ defmodule ETSHashRingOperationsTest do
   end
 
   defp await(callback), do: await(callback, 50)
+
   defp await(_callback, 0) do
     false
   end
+
   defp await(callback, attempts) do
     if callback.() do
       true

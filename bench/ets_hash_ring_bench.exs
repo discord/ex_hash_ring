@@ -2,12 +2,11 @@ defmodule ETSHashRingBench do
   use Benchfella
   alias ExHashRing.HashRing.ETS, as: Ring
 
-
   @nodes [
     "hash-ring-1-1",
     "hash-ring-1-2",
     "hash-ring-1-3",
-    "hash-ring-1-4",
+    "hash-ring-1-4"
   ]
   @replicas 512
   @name HashRingBench.ETSRing

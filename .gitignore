@@ -1,7 +1,8 @@
 /_build
+/.elixir_ls
+/bench/snapshots
 /cover
 /deps
-/bench/snapshots
 erl_crash.dump
 *.ez
 .DS_Store
