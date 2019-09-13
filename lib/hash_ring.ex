@@ -2,18 +2,19 @@ defmodule ExHashRing.HashRing do
   @compile :native
 
   @type t :: __MODULE__
+  @type override_map :: %{atom => binary}
 
   use Bitwise
   alias ExHashRing.HashRing.Utils
 
-  defstruct num_replicas: 0, nodes: [], items: {}
+  defstruct num_replicas: 0, nodes: [], overrides: %{}, items: {}
 
   @spec new :: t
   def new, do: new([])
 
-  @spec new([binary], integer) :: t
-  def new(nodes, num_replicas \\ 512) do
-    rebuild(%__MODULE__{nodes: nodes, num_replicas: num_replicas})
+  @spec new([binary], override_map, integer) :: t
+  def new(nodes, num_replicas \\ 512, overrides \\ %{}) do
+    rebuild(%__MODULE__{nodes: nodes, overrides: overrides, num_replicas: num_replicas})
   end
 
   @spec set_nodes(t, [binary]) :: t
@@ -39,11 +40,38 @@ defmodule ExHashRing.HashRing do
     end
   end
 
+  @spec set_overrides(t, override_map) :: {:ok, t}
+  def set_overrides(ring, overrides) do
+    {:ok, rebuild(%{ring | overrides: overrides})}
+  end
+
   @spec find_node(t, binary | integer) :: binary | nil
-  def find_node(%{items: items}, key) do
+  def find_node(%{overrides: overrides} = ring, key) when map_size(overrides) > 0 do
+    find_override(overrides, key) || find_node_inner(ring, key)
+  end
+
+  @spec find_node(t, binary | integer) :: binary | nil
+  def find_node(ring, key) do
+    find_node_inner(ring, key)
+  end
+
+  @spec find_node_inner(t, binary | integer) :: binary | nil
+  defp find_node_inner(%{items: items}, key) do
     with {_, name} <- find_next_highest_item(items, Utils.hash(key)) do
       name
     end
+  end
+
+  @spec find_nodes(t, binary | integer, integer) :: [binary]
+  def find_nodes(%{items: items, nodes: nodes, overrides: overrides}, key, num)
+      when num > 0 and map_size(overrides) > 0 do
+    {base, remaining} =
+      case overrides do
+        %{^key => override} -> {[override], num - 1}
+        _ -> {[], num}
+      end
+
+    do_find_nodes(items, min(remaining, length(nodes)), Utils.hash(key), base)
   end
 
   @spec find_nodes(t, binary | integer, integer) :: [binary]
@@ -69,6 +97,13 @@ defmodule ExHashRing.HashRing do
 
   defp rebuild(%{nodes: nodes} = ring) do
     %{ring | items: Utils.gen_items(nodes, ring.num_replicas) |> List.to_tuple()}
+  end
+
+  def find_override(overrides, key) do
+    case overrides do
+      %{^key => value} -> value
+      _ -> nil
+    end
   end
 
   defp find_next_highest_item(items, key_int) do

@@ -6,7 +6,7 @@ defmodule ETSHashRingTest do
   setup_all do
     rings =
       for num_replicas <- Harness.replicas(), into: %{} do
-        name = :"HashRingETSTest.Replicas#{num_replicas}"
+        name = :"ETSHashRingTest.Replicas#{num_replicas}"
 
         {:ok, _pid} =
           Ring.start_link(name,
@@ -32,6 +32,64 @@ defmodule ETSHashRingTest do
         test "find_nodes key=#{key} num=#{Harness.num()}", %{rings: rings} do
           assert Ring.find_nodes(rings[unquote(num_replicas)], unquote(key), Harness.num()) ==
                    {:ok, Harness.find_nodes(unquote(num_replicas), unquote(key), Harness.num())}
+        end
+      end
+    end
+  end
+end
+
+defmodule ETSHashRingOverrideTest do
+  use ExUnit.Case
+  alias HashRingTest.Support.Harness
+  alias ExHashRing.HashRing.ETS, as: Ring
+
+  @harness_overrides Enum.take(Harness.keys(), 5)
+  @custom_overrides ["override_string", :override_atom, 123]
+  @override_test_keys @custom_overrides ++ @harness_overrides
+  @override_map @override_test_keys |> Enum.map(&{&1, "#{&1} (override)"}) |> Map.new()
+
+  setup_all do
+    rings =
+      for num_replicas <- Harness.replicas(), into: %{} do
+        name = :"ETSHashRingOverrideTest.Replicas#{num_replicas}"
+
+        {:ok, _pid} =
+          Ring.start_link(name,
+            nodes: Harness.nodes(),
+            default_num_replicas: num_replicas,
+            named: true
+          )
+
+        Ring.set_overrides(name, @override_map)
+
+        {num_replicas, name}
+      end
+
+    {:ok, rings: rings}
+  end
+
+  for num_replicas <- Harness.replicas() do
+    describe "ets hash ring, replicas=#{num_replicas} overrides=true" do
+      for key <- Harness.keys() do
+        test "find_node key=#{key} overrides=true", %{rings: rings} do
+          found = Ring.find_node(rings[unquote(num_replicas)], unquote(key))
+          override = Map.get(@override_map, unquote(key))
+          harness = Harness.find_node(unquote(num_replicas), unquote(key))
+
+          assert found == {:ok, override || harness}
+        end
+
+        test "find_nodes key=#{key} num=#{Harness.num()} overrides=true", %{rings: rings} do
+          found = Ring.find_nodes(rings[unquote(num_replicas)], unquote(key), Harness.num())
+          harness = Harness.find_nodes(unquote(num_replicas), unquote(key), Harness.num())
+          override = [Map.get(@override_map, unquote(key))]
+
+          expected =
+            (override ++ harness)
+            |> Enum.filter(& &1)
+            |> Enum.take(Harness.num())
+
+          assert found == {:ok, expected}
         end
       end
     end
@@ -109,7 +167,7 @@ defmodule ETSHashRingOperationsTest do
     assert Ring.find_node(name, 1) == {:ok, "c"}
   end
 
-  test "remmove node", %{name: name} do
+  test "remove node", %{name: name} do
     expected_nodes = @nodes -- ["c"]
     expected_nodes_with_replicas = for node <- expected_nodes, do: {node, @default_num_replicas}
     {:ok, _} = Ring.remove_node(name, "c")
@@ -118,6 +176,34 @@ defmodule ETSHashRingOperationsTest do
     # Select a node that should now be b.
     assert Ring.get_ring_gen(name) == {:ok, 2}
     assert Ring.find_node(name, 1) == {:ok, "b"}
+  end
+
+  test "set overrides", %{name: name} do
+    new_overrides = %{
+      "1" => 1,
+      :a => 2,
+      3 => 3
+    }
+
+    {:ok, ^new_overrides} = Ring.set_overrides(name, new_overrides)
+    {:ok, ^new_overrides} = Ring.get_overrides(name)
+
+    # Assert that the ring is also re-generated at this point.
+    assert Ring.get_ring_gen(name) == {:ok, 2}
+
+    resolved_overrides =
+      Enum.map(new_overrides, fn {key, _} ->
+        {:ok, value} = Ring.find_node(name, key)
+        {key, value}
+      end)
+
+    assert new_overrides == Map.new(resolved_overrides)
+  end
+
+  test "no initial overrides", %{name: name} do
+    {:ok, overrides} = Ring.get_overrides(name)
+
+    assert map_size(overrides) == 0
   end
 
   test "ets config will remove config", %{name: name} do
@@ -181,7 +267,11 @@ defmodule ETSHashRingOperationsTest do
   end
 
   defp count_ring_gen_entries(name, ring_gen) do
-    {:ok, {table, _, _}} = Ring.Config.get(name)
+    table =
+      case Ring.Config.get(name) do
+        {:ok, {table, _, _}} -> table
+        {:ok, {table, _, _, _}} -> table
+      end
 
     :ets.tab2list(table)
     |> Enum.filter(fn {{ring_gen_, _}, _} -> ring_gen_ == ring_gen end)
@@ -189,7 +279,12 @@ defmodule ETSHashRingOperationsTest do
   end
 
   defp ring_ets_table_size(name) do
-    {:ok, {table, _, _}} = Ring.Config.get(name)
+    table =
+      case Ring.Config.get(name) do
+        {:ok, {table, _, _}} -> table
+        {:ok, {table, _, _, _}} -> table
+      end
+
     :ets.info(table, :size)
   end
 
