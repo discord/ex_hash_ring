@@ -1,6 +1,7 @@
 defmodule ExHashRing.HashRing.ETS.Config do
   use GenServer
 
+  @type t :: __MODULE__
   @type ring_gen :: integer
   @type num_nodes :: integer
   @type overrides :: %{atom => binary}
@@ -12,7 +13,7 @@ defmodule ExHashRing.HashRing.ETS.Config do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
   end
 
-  @spec init(any) :: {:ok, ExHashRing.HashRing.ETS.Config.t()}
+  @spec init(any) :: {:ok, t}
   def init(_) do
     :ets.new(__MODULE__, [
       :protected,
