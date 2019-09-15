@@ -40,7 +40,7 @@ defmodule ExHashRing.HashRing do
     end
   end
 
-  @spec set_overrides(t, override_map) :: {:ok, override_map}
+  @spec set_overrides(t, override_map) :: {:ok, t}
   def set_overrides(ring, overrides) do
     {:ok, rebuild(%{ring | overrides: overrides})}
   end
