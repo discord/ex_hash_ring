@@ -36,18 +36,28 @@ defmodule ETSHashRingBench do
     :ok
   end
 
+  bench "find_nodes(num: 2) [override, match=true]", ring: new_ring(@overrides) do
+    Ring.find_nodes(ring, "1234254543", 2)
+    :ok
+  end
+
+  bench "find_nodes(num: 3) [override, match=true]", ring: new_ring(@overrides) do
+    Ring.find_nodes(ring, "1234254543", 3)
+    :ok
+  end
+
   bench "find_node [override, match=false]", ring: new_ring(@overrides) do
     Ring.find_node(ring, "0")
     :ok
   end
 
-  bench "find_nodes(num: 2) [override]", ring: new_ring(@overrides) do
-    Ring.find_nodes(ring, "1234254543", 2)
+  bench "find_nodes(num: 2) [override, match=false]", ring: new_ring(@overrides) do
+    Ring.find_nodes(ring, "0", 2)
     :ok
   end
 
-  bench "find_nodes(num: 3) [override]", ring: new_ring(@overrides) do
-    Ring.find_nodes(ring, "1234254543", 3)
+  bench "find_nodes(num: 3) [override, match=false]", ring: new_ring(@overrides) do
+    Ring.find_nodes(ring, "0", 3)
     :ok
   end
 
