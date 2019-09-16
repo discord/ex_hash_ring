@@ -128,9 +128,10 @@ defmodule ExHashRing.HashRing.ETS do
         find_node_inner(table, gen, num_nodes, key)
 
       {:ok, {table, gen, num_nodes, overrides}} when num_nodes > 0 ->
-        case find_override(overrides, key) do
-          nil -> find_node_inner(table, gen, num_nodes, key)
-          override -> {:ok, override}
+        if override = find_override(overrides, key) do
+          {:ok, override}
+        else
+          find_node_inner(table, gen, num_nodes, key)
         end
 
       {:error, error} ->
@@ -156,26 +157,22 @@ defmodule ExHashRing.HashRing.ETS do
 
     case Config.get(name) do
       {:ok, {table, gen, num_nodes}} when num_nodes > 0 ->
-        remaining = min(num, num_nodes)
-        nodes = do_find_nodes(table, gen, num_nodes, remaining, hash, [])
+        nodes = do_find_nodes(table, gen, num_nodes, min(num, num_nodes), hash, [])
 
         {:ok, nodes}
 
       {:ok, {table, gen, num_nodes, overrides}} when num_nodes > 0 and num > 0 ->
-        nodes =
-          case find_override(overrides, key) do
-            nil ->
-              remaining = min(num, num_nodes)
-              do_find_nodes(table, gen, num_nodes, remaining, hash, [])
+        nodes = do_find_nodes(table, gen, num_nodes, min(num, num_nodes), hash, [])
 
-            override ->
-              remaining = min(num - 1, num_nodes)
-              do_find_nodes(table, gen, num_nodes, remaining, hash, [override])
-          end
+        if override = find_override(overrides, key) do
+          nodes = ([override] ++ (nodes -- [override])) |> Enum.take(num)
 
-        {:ok, nodes}
+          {:ok, nodes}
+        else
+          {:ok, nodes}
+        end
 
-      {:ok, {_, _, num_nodes, _}} when num_nodes > 0 and num == 0 ->
+      {:ok, {_, _, num_nodes, _}} when num_nodes > 0 ->
         {:ok, []}
 
       {:error, error} ->

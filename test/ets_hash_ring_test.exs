@@ -73,15 +73,10 @@ defmodule ETSHashRingOverrideTest do
       for key <- Harness.keys() do
         test "find_node key=#{key} overrides=true", %{rings: rings} do
           found = Ring.find_node(rings[unquote(num_replicas)], unquote(key))
+          override = Map.get(@override_map, unquote(key))
+          harness = Harness.find_node(unquote(num_replicas), unquote(key))
 
-          expected =
-            Map.get(
-              @override_map,
-              unquote(key),
-              Harness.find_node(unquote(num_replicas), unquote(key))
-            )
-
-          assert found == {:ok, expected}
+          assert found == {:ok, override || harness}
         end
 
         test "find_nodes key=#{key} num=#{Harness.num()} overrides=true", %{rings: rings} do

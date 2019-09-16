@@ -65,12 +65,12 @@ defmodule ExHashRing.HashRing do
   @spec find_nodes(t, binary | integer, integer) :: [binary]
   def find_nodes(%{items: items, nodes: nodes, overrides: overrides}, key, num)
       when num > 0 and map_size(overrides) > 0 do
+    nodes = do_find_nodes(items, min(num, length(nodes)), Utils.hash(key), [])
+
     if override = find_override(overrides, key) do
-      remaining = min(num - 1, length(nodes))
-      do_find_nodes(items, remaining, Utils.hash(key), [override])
+      ([override] ++ (nodes -- [override])) |> Enum.take(num)
     else
-      remaining = min(num, length(nodes))
-      do_find_nodes(items, remaining, Utils.hash(key), [])
+      nodes
     end
   end
 
