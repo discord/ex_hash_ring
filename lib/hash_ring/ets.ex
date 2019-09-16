@@ -161,7 +161,7 @@ defmodule ExHashRing.HashRing.ETS do
 
         {:ok, nodes}
 
-      {:ok, {table, gen, num_nodes, overrides}} when num_nodes > 0 and num > 0 ->
+      {:ok, {table, gen, num_nodes, overrides}} when num_nodes > 0 ->
         nodes = do_find_nodes(table, gen, num_nodes, min(num, num_nodes), hash, [])
 
         if override = find_override(overrides, key) do
@@ -171,9 +171,6 @@ defmodule ExHashRing.HashRing.ETS do
         else
           {:ok, nodes}
         end
-
-      {:ok, {_, _, num_nodes, _}} when num_nodes > 0 ->
-        {:ok, []}
 
       {:error, error} ->
         {:error, error}
