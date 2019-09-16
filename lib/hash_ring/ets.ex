@@ -165,7 +165,7 @@ defmodule ExHashRing.HashRing.ETS do
         nodes = do_find_nodes(table, gen, num_nodes, min(num, num_nodes), hash, [])
 
         if override = find_override(overrides, key) do
-          nodes = ([override] ++ (nodes -- [override])) |> Enum.take(num)
+          nodes = ([override] ++ (nodes -- [override])) |> Utils.take(num)
 
           {:ok, nodes}
         else

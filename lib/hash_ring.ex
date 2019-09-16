@@ -68,7 +68,7 @@ defmodule ExHashRing.HashRing do
     nodes = do_find_nodes(items, min(num, length(nodes)), Utils.hash(key), [])
 
     if override = find_override(overrides, key) do
-      ([override] ++ (nodes -- [override])) |> Enum.take(num)
+      ([override] ++ (nodes -- [override])) |> Utils.take(num)
     else
       nodes
     end

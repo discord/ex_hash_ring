@@ -1,5 +1,6 @@
 defmodule ExHashRing.HashRing.Utils do
   @compile :native
+  @compile {:inline, take: 2}
 
   @spec hash(atom | binary | integer) :: integer
   def hash(key) when is_binary(key) do
@@ -32,4 +33,12 @@ defmodule ExHashRing.HashRing.Utils do
 
     do_gen_items(nodes, items)
   end
+
+  def take(_, 0), do: []
+  def take([a | _], 1), do: [a]
+  def take([a, b | _], 2), do: [a, b]
+  def take([a, b, c | _], 3), do: [a, b, c]
+  def take([a, b, c, d | _], 4), do: [a, b, c, d]
+  def take([a, b, c, d, e | _], 5), do: [a, b, c, d, e]
+  def take(list, n), do: Enum.take(list, n)
 end
