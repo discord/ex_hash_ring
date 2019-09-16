@@ -1,7 +1,7 @@
 defmodule ExHashRing.HashRing.ETS.Config do
   use GenServer
 
-  @type t :: __MODULE__
+  @type t :: %__MODULE__{}
   @type ring_gen :: integer
   @type num_nodes :: integer
   @type overrides :: %{atom => binary}

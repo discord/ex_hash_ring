@@ -36,7 +36,7 @@ defmodule HashRingOverrideTest do
 
   @harness_overrides Enum.take(Harness.keys(), 5)
   @custom_overrides ["override_string", :override_atom, 123]
-  @override_test_keys @custom_overrides ++ Harness.keys()
+  @override_test_keys @custom_overrides ++ @harness_overrides
   @override_map @override_test_keys |> Enum.map(&{&1, "#{&1} (override)"}) |> Map.new()
 
   setup_all do

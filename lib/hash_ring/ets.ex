@@ -4,8 +4,7 @@ defmodule ExHashRing.HashRing.ETS do
             find_next_highest_item: 4,
             find_node_inner: 4,
             find_node: 2,
-            find_nodes: 3,
-            find_override: 2}
+            find_nodes: 3}
 
   @default_num_replicas 512
   @default_ring_gen_gc_delay 10_000
@@ -128,10 +127,9 @@ defmodule ExHashRing.HashRing.ETS do
         find_node_inner(table, gen, num_nodes, key)
 
       {:ok, {table, gen, num_nodes, overrides}} when num_nodes > 0 ->
-        if override = find_override(overrides, key) do
-          {:ok, override}
-        else
-          find_node_inner(table, gen, num_nodes, key)
+        case overrides do
+          %{^key => override} -> {:ok, override}
+          _ -> find_node_inner(table, gen, num_nodes, key)
         end
 
       {:error, error} ->
@@ -161,16 +159,19 @@ defmodule ExHashRing.HashRing.ETS do
 
         {:ok, nodes}
 
-      {:ok, {table, gen, num_nodes, overrides}} when num_nodes > 0 ->
-        nodes = do_find_nodes(table, gen, num_nodes, min(num, num_nodes), hash, [])
+      {:ok, {table, gen, num_nodes, overrides}} when num_nodes > 0 and num > 0 ->
+        {nodes, remaining} =
+          case overrides do
+            %{^key => override} -> {[override], num - 1}
+            _ -> {[], num}
+          end
 
-        if override = find_override(overrides, key) do
-          nodes = ([override] ++ (nodes -- [override])) |> Utils.take(num)
+        nodes = do_find_nodes(table, gen, num_nodes, min(remaining, num_nodes), hash, nodes)
 
-          {:ok, nodes}
-        else
-          {:ok, nodes}
-        end
+        {:ok, nodes}
+
+      {:ok, {_, _, num_nodes, _}} when num_nodes > 0 ->
+        {:ok, []}
 
       {:error, error} ->
         {:error, error}
@@ -330,13 +331,6 @@ defmodule ExHashRing.HashRing.ETS do
   defp do_ring_gen_gc(table, ring_gen) do
     :ets.match_delete(table, {{ring_gen, :_}, :_})
     :ok
-  end
-
-  def find_override(overrides, key) do
-    case overrides do
-      %{^key => value} -> value
-      _ -> nil
-    end
   end
 
   defp find_next_highest_item(_table, _ring_gen, 0, _hash) do
