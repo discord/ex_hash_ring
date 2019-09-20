@@ -1,6 +1,6 @@
 defmodule ExHashRing.HashRing.ETS do
   @compile {:inline,
-            do_find_nodes: 6,
+            do_find_nodes: 7,
             find_next_highest_item: 4,
             find_node_inner: 4,
             find_node: 2,
@@ -155,18 +155,27 @@ defmodule ExHashRing.HashRing.ETS do
 
     case Config.get(name) do
       {:ok, {table, gen, num_nodes}} when num_nodes > 0 ->
-        nodes = do_find_nodes(table, gen, num_nodes, min(num, num_nodes), hash, [])
+        nodes = do_find_nodes(table, gen, num_nodes, num, hash, [], 0)
 
         {:ok, nodes}
 
       {:ok, {table, gen, num_nodes, overrides}} when num_nodes > 0 and num > 0 ->
-        {nodes, remaining} =
+        {nodes, nodes_length} =
           case overrides do
-            %{^key => override} -> {[override], num - 1}
-            _ -> {[], num}
+            %{^key => override} -> {[override], 1}
+            _ -> {[], 0}
           end
 
-        nodes = do_find_nodes(table, gen, num_nodes, min(remaining, num_nodes), hash, nodes)
+        nodes =
+          do_find_nodes(
+            table,
+            gen,
+            num_nodes,
+            num - nodes_length,
+            hash,
+            nodes,
+            nodes_length
+          )
 
         {:ok, nodes}
 
@@ -183,17 +192,37 @@ defmodule ExHashRing.HashRing.ETS do
 
   ## Private
 
-  defp do_find_nodes(_table, _gen, _num_nodes, 0, _hash, nodes) do
-    Enum.reverse(nodes)
+  defp do_find_nodes(_table, _gen, _num_nodes, 0, _hash, found, _found_length) do
+    Enum.reverse(found)
   end
 
-  defp do_find_nodes(table, gen, num_nodes, remaining, hash, nodes) do
+  defp do_find_nodes(_table, _gen, num_nodes, _remaining, _hash, found, num_nodes) do
+    Enum.reverse(found)
+  end
+
+  defp do_find_nodes(table, gen, num_nodes, remaining, hash, found, found_length) do
     {number, node} = find_next_highest_item(table, gen, num_nodes, hash)
 
-    if node in nodes do
-      do_find_nodes(table, gen, num_nodes, remaining, number, nodes)
+    if node in found do
+      do_find_nodes(
+        table,
+        gen,
+        num_nodes,
+        remaining,
+        number,
+        found,
+        found_length
+      )
     else
-      do_find_nodes(table, gen, num_nodes, remaining - 1, number, [node | nodes])
+      do_find_nodes(
+        table,
+        gen,
+        num_nodes,
+        remaining - 1,
+        number,
+        [node | found],
+        found_length + 1
+      )
     end
   end
 

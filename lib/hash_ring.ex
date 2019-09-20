@@ -65,33 +65,37 @@ defmodule ExHashRing.HashRing do
   @spec find_nodes(t, binary | integer, integer) :: [binary]
   def find_nodes(%{items: items, nodes: nodes, overrides: overrides}, key, num)
       when num > 0 and map_size(overrides) > 0 do
-    {base, remaining} =
+    {found, found_length} =
       case overrides do
-        %{^key => override} -> {[override], num - 1}
-        _ -> {[], num}
+        %{^key => override} -> {[override], 1}
+        _ -> {[], 0}
       end
 
-    do_find_nodes(items, min(remaining, length(nodes)), Utils.hash(key), base)
+    do_find_nodes(items, num - found_length, length(nodes), Utils.hash(key), found, found_length)
   end
 
   @spec find_nodes(t, binary | integer, integer) :: [binary]
   def find_nodes(%{items: items, nodes: nodes}, key, num) do
-    do_find_nodes(items, min(num, length(nodes)), Utils.hash(key), [])
+    do_find_nodes(items, num, length(nodes), Utils.hash(key), [], 0)
   end
 
   ## Private
 
-  defp do_find_nodes(_items, 0, _key_int, nodes) do
-    Enum.reverse(nodes)
+  defp do_find_nodes(_items, 0, _num_nodes, _key, found, _found_length) do
+    Enum.reverse(found)
   end
 
-  defp do_find_nodes(items, ret, key_int, nodes) do
-    {number, name} = find_next_highest_item(items, key_int)
+  defp do_find_nodes(_items, _remaining, num_nodes, _key, found, num_nodes) do
+    Enum.reverse(found)
+  end
 
-    if name in nodes do
-      do_find_nodes(items, ret, number, nodes)
+  defp do_find_nodes(items, remaining, num_nodes, key, found, found_length) do
+    {number, name} = find_next_highest_item(items, key)
+
+    if name in found do
+      do_find_nodes(items, remaining, num_nodes, number, found, found_length)
     else
-      do_find_nodes(items, ret - 1, number, [name | nodes])
+      do_find_nodes(items, remaining - 1, num_nodes, number, [name | found], found_length + 1)
     end
   end
 
@@ -106,24 +110,24 @@ defmodule ExHashRing.HashRing do
     end
   end
 
-  defp find_next_highest_item(items, key_int) do
-    find_next_highest_item(items, tuple_size(items), key_int)
+  defp find_next_highest_item(items, key) do
+    find_next_highest_item(items, tuple_size(items), key)
   end
 
-  defp find_next_highest_item(_items, 0, _key_int) do
+  defp find_next_highest_item(_items, 0, _key) do
     nil
   end
 
-  defp find_next_highest_item(items, num_items, key_int) do
-    find_next_highest_item(items, num_items, key_int, 0, num_items - 1)
+  defp find_next_highest_item(items, num_items, key) do
+    find_next_highest_item(items, num_items, key, 0, num_items - 1)
   end
 
-  defp find_next_highest_item(items, num_items, key_int, min, max) do
+  defp find_next_highest_item(items, num_items, key, min, max) do
     mid = div(min + max, 2)
     {number, _name} = elem(items, mid)
 
     {min, max} =
-      if number > key_int do
+      if number > key do
         # Key is in the lower half.
         {min, mid - 1}
       else
@@ -141,7 +145,7 @@ defmodule ExHashRing.HashRing do
         elem(items, min)
 
       true ->
-        find_next_highest_item(items, num_items, key_int, min, max)
+        find_next_highest_item(items, num_items, key, min, max)
     end
   end
 end
