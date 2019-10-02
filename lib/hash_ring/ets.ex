@@ -10,7 +10,7 @@ defmodule ExHashRing.HashRing.ETS do
   @default_ring_gen_gc_delay 10_000
 
   @type t :: __MODULE__
-  @type override_map :: %{atom => binary}
+  @type override_map :: %{atom => [binary]}
 
   use GenServer
 
@@ -128,7 +128,7 @@ defmodule ExHashRing.HashRing.ETS do
 
       {:ok, {table, gen, num_nodes, overrides}} when num_nodes > 0 ->
         case overrides do
-          %{^key => override} -> {:ok, override}
+          %{^key => overrides} -> {:ok, List.last(overrides)}
           _ -> find_node_inner(table, gen, num_nodes, key)
         end
 
@@ -160,9 +160,9 @@ defmodule ExHashRing.HashRing.ETS do
         {:ok, nodes}
 
       {:ok, {table, gen, num_nodes, overrides}} when num_nodes > 0 and num > 0 ->
-        {nodes, nodes_length} =
+        {found, found_length} =
           case overrides do
-            %{^key => override} -> {[override], 1}
+            %{^key => overrides} -> Utils.take_max(overrides, num)
             _ -> {[], 0}
           end
 
@@ -171,10 +171,10 @@ defmodule ExHashRing.HashRing.ETS do
             table,
             gen,
             num_nodes,
-            num - nodes_length,
+            max(num - found_length, 0),
             hash,
-            nodes,
-            nodes_length
+            found,
+            found_length
           )
 
         {:ok, nodes}
@@ -337,6 +337,12 @@ defmodule ExHashRing.HashRing.ETS do
 
     config =
       if map_size(overrides) > 0 do
+        # pre-process the override lists. our search algorithm does its search back-to-front, then reverses the result.
+        overrides =
+          overrides
+          |> Enum.filter(fn {_, values} -> length(values) > 0 end)
+          |> Map.new(fn {key, values} -> {key, Enum.reverse(values)} end)
+
         {table, new_ring_gen, length(nodes), overrides}
       else
         {table, new_ring_gen, length(nodes)}

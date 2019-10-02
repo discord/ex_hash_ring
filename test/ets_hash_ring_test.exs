@@ -43,10 +43,16 @@ defmodule ETSHashRingOverrideTest do
   alias HashRingTest.Support.Harness
   alias ExHashRing.HashRing.ETS, as: Ring
 
-  @harness_overrides Enum.take(Harness.keys(), 5)
   @custom_overrides ["override_string", :override_atom, 123]
-  @override_test_keys @custom_overrides ++ @harness_overrides
-  @override_map @override_test_keys |> Enum.map(&{&1, "#{&1} (override)"}) |> Map.new()
+  @harness_single_overrides Harness.keys() |> Enum.take(5)
+  @harness_multi_overrides Harness.keys() |> Enum.drop(5) |> Enum.take(5)
+
+  @single_overrides (@custom_overrides ++ @harness_single_overrides)
+                    |> Enum.map(&{&1, ["#{&1} (override)"]})
+  @multi_overrides @harness_multi_overrides
+                   |> Enum.map(&{&1, ["#{&1} (override-1)", "#{&1} (override-2)"]})
+
+  @override_map Map.new([@single_overrides ++ @multi_overrides] |> List.flatten())
 
   setup_all do
     rings =
@@ -73,19 +79,25 @@ defmodule ETSHashRingOverrideTest do
       for key <- Harness.keys() do
         test "find_node key=#{key} overrides=true", %{rings: rings} do
           found = Ring.find_node(rings[unquote(num_replicas)], unquote(key))
-          override = Map.get(@override_map, unquote(key))
-          harness = Harness.find_node(unquote(num_replicas), unquote(key))
 
-          assert found == {:ok, override || harness}
+          expected =
+            Map.get(
+              @override_map,
+              unquote(key),
+              [Harness.find_node(unquote(num_replicas), unquote(key))]
+            )
+
+          assert found == {:ok, hd(expected)}
         end
 
         test "find_nodes key=#{key} num=#{Harness.num()} overrides=true", %{rings: rings} do
           found = Ring.find_nodes(rings[unquote(num_replicas)], unquote(key), Harness.num())
           harness = Harness.find_nodes(unquote(num_replicas), unquote(key), Harness.num())
-          override = [Map.get(@override_map, unquote(key))]
+          overrides = [Map.get(@override_map, unquote(key))]
 
           expected =
-            (override ++ harness)
+            (overrides ++ harness)
+            |> List.flatten()
             |> Enum.filter(& &1)
             |> Enum.take(Harness.num())
 
@@ -180,9 +192,9 @@ defmodule ETSHashRingOperationsTest do
 
   test "set overrides", %{name: name} do
     new_overrides = %{
-      "1" => 1,
-      :a => 2,
-      3 => 3
+      "1" => [1],
+      :a => [2],
+      3 => [3, 4, 5]
     }
 
     {:ok, ^new_overrides} = Ring.set_overrides(name, new_overrides)
@@ -192,8 +204,8 @@ defmodule ETSHashRingOperationsTest do
     assert Ring.get_ring_gen(name) == {:ok, 2}
 
     resolved_overrides =
-      Enum.map(new_overrides, fn {key, _} ->
-        {:ok, value} = Ring.find_node(name, key)
+      Enum.map(new_overrides, fn {key, expected} ->
+        {:ok, value} = Ring.find_nodes(name, key, length(expected))
         {key, value}
       end)
 
