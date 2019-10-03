@@ -34,10 +34,16 @@ defmodule HashRingOverrideTest do
   alias HashRingTest.Support.Harness
   alias ExHashRing.HashRing
 
-  @harness_overrides Enum.take(Harness.keys(), 5)
   @custom_overrides ["override_string", :override_atom, 123]
-  @override_test_keys @custom_overrides ++ @harness_overrides
-  @override_map @override_test_keys |> Enum.map(&{&1, "#{&1} (override)"}) |> Map.new()
+  @harness_single_overrides Harness.keys() |> Enum.take(5)
+  @harness_multi_overrides Harness.keys() |> Enum.drop(5) |> Enum.take(5)
+
+  @single_overrides (@custom_overrides ++ @harness_single_overrides)
+                    |> Enum.map(&{&1, ["#{&1} (override)"]})
+  @multi_overrides @harness_multi_overrides
+                   |> Enum.map(&{&1, ["#{&1} (override-1)", "#{&1} (override-2)"]})
+
+  @override_map Map.new([@single_overrides ++ @multi_overrides] |> List.flatten())
 
   setup_all do
     rings =
@@ -56,10 +62,15 @@ defmodule HashRingOverrideTest do
       for key <- Harness.keys() do
         test "find_node key=#{key} overrides=true", %{rings: rings} do
           found = HashRing.find_node(rings[unquote(num_replicas)], unquote(key))
-          override = Map.get(@override_map, unquote(key))
-          harness = Harness.find_node(unquote(num_replicas), unquote(key))
 
-          assert found == override || harness
+          expected =
+            Map.get(
+              @override_map,
+              unquote(key),
+              [Harness.find_node(unquote(num_replicas), unquote(key))]
+            )
+
+          assert found == hd(expected)
         end
 
         test "find_nodes key=#{key} num=#{Harness.num()} overrides=true", %{rings: rings} do
@@ -69,6 +80,7 @@ defmodule HashRingOverrideTest do
 
           expected =
             (override ++ harness)
+            |> List.flatten()
             |> Enum.filter(& &1)
             |> Enum.take(Harness.num())
 

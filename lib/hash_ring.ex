@@ -2,7 +2,7 @@ defmodule ExHashRing.HashRing do
   @compile :native
 
   @type t :: __MODULE__
-  @type override_map :: %{atom => binary}
+  @type override_map :: %{atom => [binary]}
 
   use Bitwise
   alias ExHashRing.HashRing.Utils
@@ -42,6 +42,11 @@ defmodule ExHashRing.HashRing do
 
   @spec set_overrides(t, override_map) :: {:ok, t}
   def set_overrides(ring, overrides) do
+    overrides =
+      overrides
+      |> Enum.filter(fn {_, values} -> length(values) > 0 end)
+      |> Map.new()
+
     {:ok, rebuild(%{ring | overrides: overrides})}
   end
 
@@ -67,11 +72,22 @@ defmodule ExHashRing.HashRing do
       when num > 0 and map_size(overrides) > 0 do
     {found, found_length} =
       case overrides do
-        %{^key => override} -> {[override], 1}
-        _ -> {[], 0}
+        %{^key => overrides} ->
+          {nodes, length} = Utils.take_max(overrides, num)
+          {Enum.reverse(nodes), length}
+
+        _ ->
+          {[], 0}
       end
 
-    do_find_nodes(items, num - found_length, length(nodes), Utils.hash(key), found, found_length)
+    do_find_nodes(
+      items,
+      max(num - found_length, 0),
+      length(nodes),
+      Utils.hash(key),
+      found,
+      found_length
+    )
   end
 
   @spec find_nodes(t, binary | integer, integer) :: [binary]
@@ -105,7 +121,7 @@ defmodule ExHashRing.HashRing do
 
   def find_override(overrides, key) do
     case overrides do
-      %{^key => value} -> value
+      %{^key => values} -> hd(values)
       _ -> nil
     end
   end

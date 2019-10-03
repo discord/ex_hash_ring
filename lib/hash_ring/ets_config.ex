@@ -4,8 +4,9 @@ defmodule ExHashRing.HashRing.ETS.Config do
   @type t :: %__MODULE__{}
   @type ring_gen :: integer
   @type num_nodes :: integer
-  @type overrides :: %{atom => binary}
-  @type config :: {reference, ring_gen, num_nodes} | {reference, ring_gen, num_nodes, overrides}
+  @type override_map :: %{atom => [binary]}
+  @type config ::
+          {reference, ring_gen, num_nodes} | {reference, ring_gen, num_nodes, override_map}
 
   defstruct monitored_pids: %{}
 
