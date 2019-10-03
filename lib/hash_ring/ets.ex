@@ -128,7 +128,7 @@ defmodule ExHashRing.HashRing.ETS do
 
       {:ok, {table, gen, num_nodes, overrides}} when num_nodes > 0 ->
         case overrides do
-          %{^key => overrides} -> {:ok, List.last(overrides)}
+          %{^key => overrides} -> {:ok, hd(overrides)}
           _ -> find_node_inner(table, gen, num_nodes, key)
         end
 
@@ -162,8 +162,12 @@ defmodule ExHashRing.HashRing.ETS do
       {:ok, {table, gen, num_nodes, overrides}} when num_nodes > 0 and num > 0 ->
         {found, found_length} =
           case overrides do
-            %{^key => overrides} -> Utils.take_max(overrides, num)
-            _ -> {[], 0}
+            %{^key => overrides} ->
+              {nodes, length} = Utils.take_max(overrides, num)
+              {Enum.reverse(nodes), length}
+
+            _ ->
+              {[], 0}
           end
 
         nodes =
@@ -337,11 +341,10 @@ defmodule ExHashRing.HashRing.ETS do
 
     config =
       if map_size(overrides) > 0 do
-        # pre-process the override lists. our search algorithm does its search back-to-front, then reverses the result.
         overrides =
           overrides
           |> Enum.filter(fn {_, values} -> length(values) > 0 end)
-          |> Map.new(fn {key, values} -> {key, Enum.reverse(values)} end)
+          |> Map.new()
 
         {table, new_ring_gen, length(nodes), overrides}
       else

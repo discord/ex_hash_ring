@@ -193,23 +193,24 @@ defmodule ETSHashRingOperationsTest do
   test "set overrides", %{name: name} do
     new_overrides = %{
       "1" => [1],
-      :a => [2],
+      :a => [2, 3],
       3 => [3, 4, 5]
     }
 
     {:ok, ^new_overrides} = Ring.set_overrides(name, new_overrides)
     {:ok, ^new_overrides} = Ring.get_overrides(name)
 
-    # Assert that the ring is also re-generated at this point.
+    # assert that the ring is also re-generated at this point.
     assert Ring.get_ring_gen(name) == {:ok, 2}
 
-    resolved_overrides =
-      Enum.map(new_overrides, fn {key, expected} ->
-        {:ok, value} = Ring.find_nodes(name, key, length(expected))
-        {key, value}
-      end)
+    Enum.each(new_overrides, fn {key, value} ->
+      # assert that a full lookup returns the correct.
+      assert {:ok, value} == Ring.find_nodes(name, key, length(value))
 
-    assert new_overrides == Map.new(resolved_overrides)
+      # assert that a lookup of the first half of these items returns the correct half.
+      half = Enum.take(value, ceil(length(value) / 2))
+      assert {:ok, half} == Ring.find_nodes(name, key, length(half))
+    end)
   end
 
   test "no initial overrides", %{name: name} do

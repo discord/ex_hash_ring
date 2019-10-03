@@ -42,11 +42,10 @@ defmodule ExHashRing.HashRing do
 
   @spec set_overrides(t, override_map) :: {:ok, t}
   def set_overrides(ring, overrides) do
-    # pre-process the override lists. our search algorithm does its search back-to-front, then reverses the result.
     overrides =
       overrides
       |> Enum.filter(fn {_, values} -> length(values) > 0 end)
-      |> Map.new(fn {key, values} -> {key, Enum.reverse(values)} end)
+      |> Map.new()
 
     {:ok, rebuild(%{ring | overrides: overrides})}
   end
@@ -73,8 +72,12 @@ defmodule ExHashRing.HashRing do
       when num > 0 and map_size(overrides) > 0 do
     {found, found_length} =
       case overrides do
-        %{^key => overrides} -> Utils.take_max(overrides, num)
-        _ -> {[], 0}
+        %{^key => overrides} ->
+          {nodes, length} = Utils.take_max(overrides, num)
+          {Enum.reverse(nodes), length}
+
+        _ ->
+          {[], 0}
       end
 
     do_find_nodes(
@@ -118,7 +121,7 @@ defmodule ExHashRing.HashRing do
 
   def find_override(overrides, key) do
     case overrides do
-      %{^key => values} -> List.last(values)
+      %{^key => values} -> hd(values)
       _ -> nil
     end
   end
