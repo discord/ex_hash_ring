@@ -9,8 +9,8 @@ defmodule ExHashRing.HashRing.ETS do
   @default_num_replicas 512
   @default_ring_gen_gc_delay 10_000
 
-  @type t :: __MODULE__
-  @type override_map :: %{atom => [binary]}
+  @type override_map :: %{optional(binary | integer) => [binary]}
+  @opaque t :: %__MODULE__{}
 
   use GenServer
 
@@ -54,7 +54,7 @@ defmodule ExHashRing.HashRing.ETS do
       rebuild(%__MODULE__{
         table: table,
         default_num_replicas: default_num_replicas,
-        nodes: transform_nodes(nodes, default_num_replicas),
+        nodes: Utils.transform_nodes(nodes, default_num_replicas),
         overrides: overrides,
         name: name
       })
@@ -71,7 +71,8 @@ defmodule ExHashRing.HashRing.ETS do
     GenServer.call(name, {:set_nodes, node_names})
   end
 
-  @spec add_node(atom, binary, integer) :: {:ok, [{binary, integer}]} | {:error, :node_exists}
+  @spec add_node(atom, binary, integer | nil) ::
+          {:ok, [{binary, integer}]} | {:error, :node_exists}
   def add_node(name, node_name, num_replicas \\ nil) do
     GenServer.call(name, {:add_node, node_name, num_replicas})
   end
@@ -140,7 +141,7 @@ defmodule ExHashRing.HashRing.ETS do
     end
   end
 
-  defp find_node_inner(table, gen, num_nodes, key) do
+  defp find_node_inner(table, gen, num_nodes, key) when num_nodes > 0 do
     hash = Utils.hash(key)
 
     case find_next_highest_item(table, gen, num_nodes, hash) do
@@ -200,11 +201,13 @@ defmodule ExHashRing.HashRing.ETS do
     Enum.reverse(found)
   end
 
-  defp do_find_nodes(_table, _gen, num_nodes, _remaining, _hash, found, num_nodes) do
+  defp do_find_nodes(_table, _gen, num_nodes, _remaining, _hash, found, num_nodes)
+       when num_nodes > 0 do
     Enum.reverse(found)
   end
 
-  defp do_find_nodes(table, gen, num_nodes, remaining, hash, found, found_length) do
+  defp do_find_nodes(table, gen, num_nodes, remaining, hash, found, found_length)
+       when num_nodes > 0 do
     {number, node} = find_next_highest_item(table, gen, num_nodes, hash)
 
     if node in found do
@@ -235,7 +238,7 @@ defmodule ExHashRing.HashRing.ETS do
         _from,
         %{default_num_replicas: default_num_replicas} = state
       ) do
-    nodes = transform_nodes(nodes, default_num_replicas)
+    nodes = Utils.transform_nodes(nodes, default_num_replicas)
     {:reply, {:ok, nodes}, rebuild(%{state | nodes: nodes})}
   end
 
@@ -371,11 +374,7 @@ defmodule ExHashRing.HashRing.ETS do
     :ok
   end
 
-  defp find_next_highest_item(_table, _ring_gen, 0, _hash) do
-    nil
-  end
-
-  defp find_next_highest_item(table, ring_gen, _num_nodes, hash) do
+  defp find_next_highest_item(table, ring_gen, num_nodes, hash) when num_nodes > 0 do
     key =
       case :ets.next(table, {ring_gen, hash}) do
         {^ring_gen, _number} = key -> key
@@ -390,12 +389,5 @@ defmodule ExHashRing.HashRing.ETS do
 
   defp has_node_with_name?(nodes, node_name) do
     Enum.any?(nodes, &match?({^node_name, _}, &1))
-  end
-
-  defp transform_nodes(nodes, default_num_replicas) do
-    Enum.map(nodes, fn
-      {_node, _num_replicas} = item -> item
-      node -> {node, default_num_replicas}
-    end)
   end
 end

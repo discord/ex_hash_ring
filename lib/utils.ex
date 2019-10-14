@@ -10,16 +10,16 @@ defmodule ExHashRing.HashRing.Utils do
 
   def hash(key), do: hash("#{key}")
 
-  @spec gen_items([{binary, integer}]) :: [{integer, binary}]
-  @spec gen_items(binary, integer) :: [{integer, binary}]
-  def gen_items([]), do: []
-  def gen_items(nodes), do: do_gen_items(nodes, [])
-  def gen_items([], _num_replicas), do: []
-
-  def gen_items(nodes, default_num_replicas) do
-    nodes = for node <- nodes, do: {node, default_num_replicas}
-    gen_items(nodes)
+  @spec transform_nodes([binary], integer) :: [{binary, integer}]
+  def transform_nodes(nodes, default_num_replicas) do
+    Enum.map(nodes, fn
+      {_node, _num_replicas} = item -> item
+      node -> {node, default_num_replicas}
+    end)
   end
+
+  @spec gen_items([{binary, integer}]) :: [{integer, binary}]
+  def gen_items(nodes), do: do_gen_items(nodes, [])
 
   defp do_gen_items([], items) do
     Enum.sort(items, &(elem(&1, 0) < elem(&2, 0)))

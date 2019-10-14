@@ -3,10 +3,10 @@ defmodule ExHashRing.HashRing.ETS.Config do
 
   @type t :: %__MODULE__{}
   @type ring_gen :: integer
-  @type num_nodes :: integer
-  @type override_map :: %{atom => [binary]}
+  @type num_nodes :: non_neg_integer
+  @type override_map :: %{optional(term) => [binary]}
   @type config ::
-          {reference, ring_gen, num_nodes} | {reference, ring_gen, num_nodes, override_map}
+          {:ets.tid(), ring_gen, num_nodes} | {:ets.tid(), ring_gen, num_nodes, override_map}
 
   defstruct monitored_pids: %{}
 

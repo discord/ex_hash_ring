@@ -5,7 +5,7 @@ defmodule ETSHashRingBench do
   @name HashRingBench.ETSRing
   @nodes ["hash-ring-1-1", "hash-ring-1-2", "hash-ring-1-3", "hash-ring-1-4"]
   @replicas 512
-  @overrides %{"1234254543" => 1}
+  @overrides %{"1234254543" => [1]}
 
   setup_all do
     Ring.Config.start_link()
