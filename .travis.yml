@@ -4,7 +4,7 @@ git:
   depth: 3
 elixir:
   - 1.9.4
-  - 1.8.4
+  - 1.8.2
 otp_release:
   - 20.1
   - 21.1
