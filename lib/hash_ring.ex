@@ -73,8 +73,8 @@ defmodule ExHashRing.HashRing do
     {found, found_length} =
       case overrides do
         %{^key => overrides} ->
-          {nodes, length} = Utils.take_max(overrides, num)
-          {Enum.reverse(nodes), length}
+          {nodes2, length} = Utils.take_max(overrides, num)
+          {Enum.reverse(nodes2), length}
 
         _ ->
           {[], 0}
