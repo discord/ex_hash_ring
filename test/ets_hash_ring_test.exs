@@ -208,7 +208,7 @@ defmodule ETSHashRingOperationsTest do
       assert {:ok, value} == Ring.find_nodes(name, key, length(value))
 
       # assert that a lookup of the first half of these items returns the correct half.
-      half = Enum.take(value, Kernel.ceil(length(value) / 2))
+      half = Enum.take(value, round(length(value) / 2))
       assert {:ok, half} == Ring.find_nodes(name, key, length(half))
     end)
   end
