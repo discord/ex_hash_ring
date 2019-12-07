@@ -208,7 +208,13 @@ defmodule ETSHashRingOperationsTest do
       assert {:ok, value} == Ring.find_nodes(name, key, length(value))
 
       # assert that a lookup of the first half of these items returns the correct half.
-      half = Enum.take(value, ceil(length(value) / 2))
+      half =
+        Enum.take(
+          value,
+          # Kernel.ceil is not availble in Elixir 1.7.
+          Float.ceil(length(value) / 2) |> trunc()
+        )
+
       assert {:ok, half} == Ring.find_nodes(name, key, length(half))
     end)
   end
