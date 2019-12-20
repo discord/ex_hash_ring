@@ -233,6 +233,10 @@ defmodule ExHashRing.HashRing.ETS do
     end
   end
 
+  defp do_find_nodes(_table, _gen, 0, _remaining, _hash, _found, _found_length) do
+    Enum.reverse(found)
+  end
+  
   def handle_call(
         {:set_nodes, nodes},
         _from,
