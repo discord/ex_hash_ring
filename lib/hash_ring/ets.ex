@@ -201,8 +201,7 @@ defmodule ExHashRing.HashRing.ETS do
     Enum.reverse(found)
   end
 
-  defp do_find_nodes(_table, _gen, num_nodes, _remaining, _hash, found, num_nodes)
-       when num_nodes > 0 do
+  defp do_find_nodes(_table, _gen, num_nodes, _remaining, _hash, found, num_nodes) do
     Enum.reverse(found)
   end
 
