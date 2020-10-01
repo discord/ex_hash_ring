@@ -5,14 +5,41 @@ defmodule ExHashRing.HashRing.ETS.Config do
   @type ring_gen :: integer
   @type num_nodes :: integer
   @type override_map :: %{atom => [binary]}
-  @type config ::
-          {reference, ring_gen, num_nodes} | {reference, ring_gen, num_nodes, override_map}
+  @type table_config :: {:ets.tid(), num_nodes()}
+  @type config ::{current :: table_config(), previous :: table_config(), ring_gen(), override_map()}
 
   defstruct monitored_pids: %{}
 
+  ## Client
+
+  @spec start_link() :: GenServer.on_start()
   def start_link() do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
   end
+
+  @doc """
+  Retrieves the configuration for the specified ring.
+  """
+  @spec get(atom) :: {:ok, config} | {:error, :no_ring}
+  def get(name) do
+    case :ets.lookup(__MODULE__, name) do
+      [{^name, config}] ->
+        {:ok, config}
+
+      _ ->
+        {:error, :no_ring}
+    end
+  end
+
+  @doc """
+  Sets the configuration for the specified ring.
+  """
+  @spec set(atom, pid, config) :: :ok
+  def set(name, owner_pid, config) do
+    GenServer.call(__MODULE__, {:set, name, owner_pid, config})
+  end
+
+  ## Server
 
   @spec init(any) :: {:ok, t}
   def init(_) do
@@ -26,31 +53,15 @@ defmodule ExHashRing.HashRing.ETS.Config do
     {:ok, %__MODULE__{}}
   end
 
-  @spec set(atom, pid, config) :: :ok
-  def set(name, owner_pid, config) do
-    GenServer.call(__MODULE__, {:set, name, owner_pid, config})
-  end
-
-  @spec get(atom) :: {:ok, config} | {:error, :no_ring}
-  def get(name) do
-    case :ets.lookup(__MODULE__, name) do
-      [{^name, config}] -> {:ok, config}
-      _ -> {:error, :no_ring}
-    end
-  end
-
   def handle_call({:set, name, owner_pid, config}, _from, state) do
-    state = state |> monitor_ring(name, owner_pid)
+    state = monitor_ring(state, name, owner_pid)
     true = :ets.insert(__MODULE__, {name, config})
     {:reply, :ok, state}
   end
 
-  def handle_info(
-        {:DOWN, monitor_ref, :process, pid, _reason},
-        %{monitored_pids: monitored_pids} = state
-      ) do
+  def handle_info({:DOWN, monitor_ref, :process, pid, _reason}, %__MODULE__{} = state) do
     monitored_pids =
-      case Map.pop(monitored_pids, pid) do
+      case Map.pop(state.monitored_pids, pid) do
         {nil, monitored_pids} ->
           monitored_pids
 
@@ -59,16 +70,19 @@ defmodule ExHashRing.HashRing.ETS.Config do
           monitored_pids
       end
 
-    {:noreply, %{state | monitored_pids: monitored_pids}}
+    {:noreply, %__MODULE__{state | monitored_pids: monitored_pids}}
   end
 
-  defp monitor_ring(%{monitored_pids: monitored_pids} = state, name, owner_pid) do
+  ## Private
+
+  @spec monitor_ring(state :: t(), name :: binary(), owner_pid :: pid()) :: t()
+  defp monitor_ring(%__MODULE__{} = state, name, owner_pid) do
     monitored_pids =
-      Map.put_new_lazy(monitored_pids, owner_pid, fn ->
+      Map.put_new_lazy(state.monitored_pids, owner_pid, fn ->
         monitor_ref = Process.monitor(owner_pid)
         {monitor_ref, name}
       end)
 
-    %{state | monitored_pids: monitored_pids}
+    %__MODULE__{state | monitored_pids: monitored_pids}
   end
 end
