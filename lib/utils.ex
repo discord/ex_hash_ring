@@ -36,21 +36,18 @@ defmodule ExHashRing.HashRing.Utils do
 
   @spec take_max(list :: list, maximum :: integer) :: {list :: list, count :: integer}
   def take_max(list, maximum)
+
   def take_max(_, 0), do: {[], 0}
-  def take_max(list, maximum) when maximum > 0, do: do_take_max(list, maximum, 0)
 
-  @spec do_take_max(list, remaining :: integer, count :: integer) :: {list, count :: integer}
-  defp do_take_max([head | _], 1, count) do
-    {[head], count + 1}
+  def take_max(list, maximum) when maximum > 0 do
+    do_take_max(list, maximum, {[], 0})
   end
 
-  defp do_take_max([head | tail], remaining, count) do
-    {tail, count} = do_take_max(tail, remaining - 1, count + 1)
+  defp do_take_max([], _remaining, acc), do: acc
 
-    {[head | tail], count}
-  end
+  defp do_take_max(_, 0, acc), do: acc
 
-  defp do_take_max([], _remaining, count) do
-    {[], count}
+  defp do_take_max([head | tail], remaining, {items, count}) do
+    do_take_max(tail, remaining - 1, {[head | items], count + 1})
   end
 end

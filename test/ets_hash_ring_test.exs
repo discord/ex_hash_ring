@@ -171,13 +171,61 @@ defmodule ETSHashRingOperationsTest do
     expected_nodes_with_replicas = for node <- @nodes, do: {node, @default_num_replicas}
     expected_nodes_with_replicas = [{"d", 200} | expected_nodes_with_replicas]
 
-    {:ok, _} = Ring.add_node(name, "d", 200)
+    {:ok, ^expected_nodes_with_replicas} = Ring.add_node(name, "d", 200)
     {:ok, ^expected_nodes} = Ring.get_nodes(name)
     {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
     # Select a node that should now be c.
     assert Ring.get_ring_gen(name) == {:ok, 2}
     assert Ring.find_node(name, 1) == {:ok, "c"}
   end
+
+  test "add nodes without replicas", %{name: name} do
+    expected_nodes = ["d", "e"] ++ @nodes
+    expected_nodes_with_replicas = for node <- expected_nodes, do: {node, @default_num_replicas}
+
+    {:ok, previous_generation} = Ring.get_ring_gen(name)
+
+    assert {:ok, ^expected_nodes_with_replicas} = Ring.add_nodes(name, ["d", "e"])
+    assert {:ok, ^expected_nodes} = Ring.get_nodes(name)
+    assert {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+
+    {:ok, current_generation} = Ring.get_ring_gen(name)
+
+    assert current_generation == previous_generation + 1
+  end
+
+  test "add nodes with replicas", %{name: name} do
+    expected_nodes = ["d", "e"] ++ @nodes
+    expected_nodes_with_replicas = for node <- @nodes, do: {node, @default_num_replicas}
+    expected_nodes_with_replicas = [{"d", 100}, {"e", 100}] ++ expected_nodes_with_replicas
+
+    {:ok, previous_generation} = Ring.get_ring_gen(name)
+
+    assert {:ok, ^expected_nodes_with_replicas} = Ring.add_nodes(name, [{"d", 100}, {"e", 100}])
+    assert {:ok, ^expected_nodes} = Ring.get_nodes(name)
+    assert {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+
+    {:ok, current_generation} = Ring.get_ring_gen(name)
+
+    assert current_generation == previous_generation + 1
+  end
+
+  test "add nodes mixed with and without replicas", %{name: name} do
+    expected_nodes = ["d", "e"] ++ @nodes
+    expected_nodes_with_replicas = for node <- @nodes, do: {node, @default_num_replicas}
+    expected_nodes_with_replicas = [{"d", @default_num_replicas}, {"e", 100}] ++ expected_nodes_with_replicas
+
+    {:ok, previous_generation} = Ring.get_ring_gen(name)
+
+    assert {:ok, ^expected_nodes_with_replicas} = Ring.add_nodes(name, ["d", {"e", 100}])
+    assert {:ok, ^expected_nodes} = Ring.get_nodes(name)
+    assert {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+
+    {:ok, current_generation} = Ring.get_ring_gen(name)
+
+    assert current_generation == previous_generation + 1
+  end
+
 
   test "remove node", %{name: name} do
     expected_nodes = @nodes -- ["c"]
@@ -197,11 +245,13 @@ defmodule ETSHashRingOperationsTest do
       3 => [3, 4, 5]
     }
 
+    {:ok, current_generation} = Ring.get_ring_gen(name)
+
     {:ok, ^new_overrides} = Ring.set_overrides(name, new_overrides)
     {:ok, ^new_overrides} = Ring.get_overrides(name)
 
-    # assert that the ring is also re-generated at this point.
-    assert Ring.get_ring_gen(name) == {:ok, 2}
+    # assert that changing the overrides does not require a new generation in the ring
+    assert Ring.get_ring_gen(name) == {:ok, current_generation}
 
     Enum.each(new_overrides, fn {key, value} ->
       # assert that a full lookup returns the correct.
@@ -283,6 +333,75 @@ defmodule ETSHashRingOperationsTest do
     {:ok, _pid} = Ring.start_link(HashRingETSTest.Empty, nodes: [])
     assert Ring.find_node(HashRingETSTest.Empty, 1) == {:error, :invalid_ring}
     assert Ring.find_nodes(HashRingETSTest.Empty, 1, 2) == {:error, :invalid_ring}
+  end
+
+  test "find_previous_nodes" do
+    name = HashRingETSTest.Previous
+
+    {:ok, _pid} = Ring.start_link(name, nodes: @nodes, named: true)
+
+    {:ok, previous_generation} = Ring.get_ring_gen(name)
+
+    # Find primary and secondary for the currrent configuration
+    {:ok, [primary_a, secondary_a]} = Ring.find_nodes(name, 1, 2)
+
+    # Add multiple new nodes to the ring
+    {:ok, _} = Ring.add_nodes(name, ["d", "e", "f", "g", "h", "i", "j", "k"])
+
+    {:ok, current_generation} = Ring.get_ring_gen(name)
+
+    # Adding nodes atomically should increment the generation by 1
+    assert current_generation == previous_generation + 1
+
+    # Find primary and secondary for the new configuration
+    {:ok, [primary_b, secondary_b]} = Ring.find_nodes(name, 1, 2)
+
+    # Assert that the new configuration assigns different nodes to the target
+    assert primary_a != primary_b
+    assert secondary_a != secondary_b
+
+    {:ok, [primary_c, secondary_c]} = Ring.find_previous_nodes(name, 1, 2)
+
+    # Assert that the new configuration's previous generation can be queried
+    assert primary_a == primary_c
+    assert secondary_a == secondary_c
+  end
+
+  test "find_stable_nodes" do
+    name = HashRingETSTest.Stable
+
+    {:ok, _pid} = Ring.start_link(name, nodes: @nodes, named: true)
+
+    {:ok, previous_generation} = Ring.get_ring_gen(name)
+
+    # Find primary and secondary for the currrent configuration
+    {:ok, [primary_a, secondary_a]} = Ring.find_nodes(name, 1, 2)
+
+    # Add multiple new nodes to the ring
+    {:ok, _} = Ring.add_nodes(name, ["d", "e", "f", "g", "h", "i", "j", "k"])
+
+    {:ok, current_generation} = Ring.get_ring_gen(name)
+
+    # Adding nodes atomically should increment the generation by 1
+    assert current_generation == previous_generation + 1
+
+    # Find primary and secondary for the new configuration
+    {:ok, [primary_b, secondary_b]} = Ring.find_nodes(name, 1, 2)
+
+    # Assert that the new configuration assigns different nodes to the target
+    assert primary_a != primary_b
+    assert secondary_a != secondary_b
+
+    {:ok, stable_nodes} = Ring.find_stable_nodes(name, 1, 2)
+
+    # Assert that both the current and previous generation's nodes are in the stable_nodes
+    assert primary_a in stable_nodes
+    assert primary_b in stable_nodes
+    assert secondary_a in stable_nodes
+    assert secondary_b in stable_nodes
+
+    # Assert that the newest primary is at the head of the stable nodes
+    assert primary_b == hd(stable_nodes)
   end
 
   defp count_ring_gen_entries(name, ring_gen) do
