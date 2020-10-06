@@ -5,7 +5,7 @@ defmodule ExHashRing.HashRing.ETS do
   alias ExHashRing.HashRing.ETS.Config
 
   @compile {:inline,
-            do_find_node: 4,
+            do_find_nodes_in_table: 6,
             do_find_nodes: 7,
             find_next_highest_item: 4,
             find_node: 2,
@@ -80,21 +80,8 @@ defmodule ExHashRing.HashRing.ETS do
   """
   @spec find_node(atom, binary | integer) :: {:ok, binary} | {:error, atom}
   def find_node(name, key) do
-    case Config.get(name) do
-      {:ok, {{table, num_nodes}, _previous_table, gen, overrides}} when num_nodes > 0 ->
-        case overrides do
-          %{^key => overrides} ->
-            {:ok, hd(overrides)}
-
-          _ ->
-            do_find_node(table, gen, num_nodes, key)
-        end
-
-      {:error, _} = error ->
-        error
-
-      _ ->
-        {:error, :invalid_ring}
+    with {:ok, [node]} <- find_nodes(name, key, 1)  do
+      {:ok, node}
     end
   end
 
@@ -406,18 +393,6 @@ defmodule ExHashRing.HashRing.ETS do
   end
 
   ## Private
-
-  defp do_find_node(table, gen, num_nodes, key) do
-    hash = Utils.hash(key)
-
-    case find_next_highest_item(table, gen, num_nodes, hash) do
-      {_, node} ->
-        {:ok, node}
-
-      _ ->
-        {:error, :invalid_ring}
-    end
-  end
 
   @spec do_find_nodes_in_table(
     key :: term(),
