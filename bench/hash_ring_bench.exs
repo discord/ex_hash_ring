@@ -4,7 +4,7 @@ defmodule HashRingBench do
 
   @nodes ["hash-ring-1-1", "hash-ring-1-2", "hash-ring-1-3", "hash-ring-1-4"]
   @replicas 512
-  @overrides %{"1234254543" => 1}
+  @overrides %{"1234254543" => [1]}
 
   bench "find_node", ring: new_ring() do
     HashRing.find_node(ring, "1234254543")
