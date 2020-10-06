@@ -61,6 +61,16 @@ defmodule ETSHashRingBench do
     :ok
   end
 
+  bench "find_stable_nodes(num: 2)", ring: new_ring_with_previous(@overrides) do
+    Ring.find_stable_nodes(ring, "0", 2)
+    :ok
+  end
+
+  bench "find_stable_nodes(num: 3)", ring: new_ring_with_previous(@overrides) do
+    Ring.find_stable_nodes(ring, "0", 3)
+    :ok
+  end
+
   bench "regenerate ring & gc", ring: new_ring() do
     Ring.set_nodes(ring, @nodes)
     Ring.force_gc(ring)
@@ -75,6 +85,22 @@ defmodule ETSHashRingBench do
         overrides: overrides,
         named: true
       )
+
+    @name
+  end
+
+  defp new_ring_with_previous(overrides \\ %{}) do
+    original_nodes = Enum.slice(@nodes, 0, 2)
+
+    {:ok, _} =
+      Ring.start_link(@name,
+        nodes: original_nodes,
+        num_replicas: @replicas,
+        overrides: overrides,
+        named: true
+      )
+
+    Ring.set_nodes(@name, @nodes)
 
     @name
   end
