@@ -201,6 +201,14 @@ defmodule ExHashRing.HashRing.ETS do
   end
 
   @doc """
+  Atomically remove multiple nodes from the ring by name
+  """
+  @spec remove_nodes(atom, [binary]) :: {:ok, [{binary, integer}]} | {:error, :node_not_exists}
+  def remove_nodes(name, node_names) do
+    GenServer.call(name, {:remove_nodes, node_names})
+  end
+
+  @doc """
   Replaces the nodes in the ring with a new set of nodes.
   """
   @spec set_nodes(atom, [binary | {binary, integer}]) :: {:ok, [{binary, integer}]}
@@ -315,6 +323,17 @@ defmodule ExHashRing.HashRing.ETS do
   def handle_call({:remove_node, node_name}, _from, %{nodes: nodes} = state) do
     if has_node_with_name?(nodes, node_name) do
       nodes = Enum.reject(nodes, fn {existing_node, _} -> existing_node == node_name end)
+      {:reply, {:ok, nodes}, update_nodes(state, nodes)}
+    else
+      {:reply, {:error, :node_not_exists}, state}
+    end
+  end
+
+  def handle_call({:remove_nodes, node_names}, _from, %__MODULE__{} = state) do
+    unknown_nodes = Enum.reject(node_names, &has_node_with_name?(state.nodes, &1))
+
+    if Enum.empty?(unknown_nodes) do
+      nodes = Enum.reject(state.nodes, fn {name, _} -> name in node_names end)
       {:reply, {:ok, nodes}, update_nodes(state, nodes)}
     else
       {:reply, {:error, :node_not_exists}, state}

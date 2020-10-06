@@ -154,88 +154,197 @@ defmodule ETSHashRingOperationsTest do
     assert node_name in new_nodes
   end
 
-  test "add node", %{name: name} do
-    expected_nodes = ["d" | @nodes]
-    expected_nodes_with_replicas = for node <- expected_nodes, do: {node, @default_num_replicas}
+  describe "add_node/2" do
+    test "name only", %{name: name} do
+      expected_nodes = ["d" | @nodes]
+      expected_nodes_with_replicas = for node <- expected_nodes, do: {node, @default_num_replicas}
 
-    {:ok, _} = Ring.add_node(name, "d")
-    {:ok, ^expected_nodes} = Ring.get_nodes(name)
-    {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
-    # Select a node that should now be c.
-    assert Ring.get_ring_gen(name) == {:ok, 2}
-    assert Ring.find_node(name, 1) == {:ok, "c"}
+      {:ok, _} = Ring.add_node(name, "d")
+      {:ok, ^expected_nodes} = Ring.get_nodes(name)
+      {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+      # Select a node that should now be c.
+      assert Ring.get_ring_gen(name) == {:ok, 2}
+      assert Ring.find_node(name, 1) == {:ok, "c"}
+    end
+
+    test "name with custom replicas", %{name: name} do
+      expected_nodes = ["d" | @nodes]
+      expected_nodes_with_replicas = for node <- @nodes, do: {node, @default_num_replicas}
+      expected_nodes_with_replicas = [{"d", 200} | expected_nodes_with_replicas]
+
+      {:ok, ^expected_nodes_with_replicas} = Ring.add_node(name, "d", 200)
+      {:ok, ^expected_nodes} = Ring.get_nodes(name)
+      {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+      # Select a node that should now be c.
+      assert Ring.get_ring_gen(name) == {:ok, 2}
+      assert Ring.find_node(name, 1) == {:ok, "c"}
+    end
   end
 
-  test "add node with_replicas", %{name: name} do
-    expected_nodes = ["d" | @nodes]
-    expected_nodes_with_replicas = for node <- @nodes, do: {node, @default_num_replicas}
-    expected_nodes_with_replicas = [{"d", 200} | expected_nodes_with_replicas]
+  describe "add_nodes/2" do
+    test "without replicas", %{name: name} do
+      expected_nodes = ["d", "e"] ++ @nodes
+      expected_nodes_with_replicas = for node <- expected_nodes, do: {node, @default_num_replicas}
 
-    {:ok, ^expected_nodes_with_replicas} = Ring.add_node(name, "d", 200)
-    {:ok, ^expected_nodes} = Ring.get_nodes(name)
-    {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
-    # Select a node that should now be c.
-    assert Ring.get_ring_gen(name) == {:ok, 2}
-    assert Ring.find_node(name, 1) == {:ok, "c"}
+      {:ok, previous_generation} = Ring.get_ring_gen(name)
+
+      assert {:ok, ^expected_nodes_with_replicas} = Ring.add_nodes(name, ["d", "e"])
+      assert {:ok, ^expected_nodes} = Ring.get_nodes(name)
+      assert {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+
+      {:ok, current_generation} = Ring.get_ring_gen(name)
+
+      assert current_generation == previous_generation + 1
+    end
+
+    test "with replicas", %{name: name} do
+      expected_nodes = ["d", "e"] ++ @nodes
+      expected_nodes_with_replicas = for node <- @nodes, do: {node, @default_num_replicas}
+      expected_nodes_with_replicas = [{"d", 100}, {"e", 100}] ++ expected_nodes_with_replicas
+
+      {:ok, previous_generation} = Ring.get_ring_gen(name)
+
+      assert {:ok, ^expected_nodes_with_replicas} = Ring.add_nodes(name, [{"d", 100}, {"e", 100}])
+      assert {:ok, ^expected_nodes} = Ring.get_nodes(name)
+      assert {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+
+      {:ok, current_generation} = Ring.get_ring_gen(name)
+
+      assert current_generation == previous_generation + 1
+    end
+
+    test "mixed with and without replicas", %{name: name} do
+      expected_nodes = ["d", "e"] ++ @nodes
+      expected_nodes_with_replicas = for node <- @nodes, do: {node, @default_num_replicas}
+      expected_nodes_with_replicas = [{"d", @default_num_replicas}, {"e", 100}] ++ expected_nodes_with_replicas
+
+      {:ok, previous_generation} = Ring.get_ring_gen(name)
+
+      assert {:ok, ^expected_nodes_with_replicas} = Ring.add_nodes(name, ["d", {"e", 100}])
+      assert {:ok, ^expected_nodes} = Ring.get_nodes(name)
+      assert {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+
+      {:ok, current_generation} = Ring.get_ring_gen(name)
+
+      assert current_generation == previous_generation + 1
+    end
+
+    test "error to add nodes that already exist", %{name: name} do
+      assert {:error, :node_exists} == Ring.add_nodes(name, ["a", "b"])
+    end
+
+    test "error to add mixed new nodes with those that already exist", %{name: name} do
+      assert {:error, :node_exists} == Ring.add_nodes(name, ["new", "a"])
+    end
   end
 
-  test "add nodes without replicas", %{name: name} do
-    expected_nodes = ["d", "e"] ++ @nodes
-    expected_nodes_with_replicas = for node <- expected_nodes, do: {node, @default_num_replicas}
+  describe "remove_node/2" do
+    test "returns the retained nodes", %{name: name} do
+      expected_nodes = @nodes -- ["c"]
+      expected_nodes_with_replicas = for node <- expected_nodes, do: {node, @default_num_replicas}
 
-    {:ok, previous_generation} = Ring.get_ring_gen(name)
+      {:ok, ^expected_nodes_with_replicas} = Ring.remove_node(name, "c")
+    end
 
-    assert {:ok, ^expected_nodes_with_replicas} = Ring.add_nodes(name, ["d", "e"])
-    assert {:ok, ^expected_nodes} = Ring.get_nodes(name)
-    assert {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+    test "has only the retained nodes after removal", %{name: name} do
+      expected_nodes = @nodes -- ["c"]
 
-    {:ok, current_generation} = Ring.get_ring_gen(name)
+      {:ok, _} = Ring.remove_node(name, "c")
 
-    assert current_generation == previous_generation + 1
+      assert {:ok, ^expected_nodes} = Ring.get_nodes(name)
+    end
+
+    test "retained nodes have the expected number of replicas", %{name: name} do
+      expected_nodes = @nodes -- ["c"]
+      expected_nodes_with_replicas = for node <- expected_nodes, do: {node, @default_num_replicas}
+
+      {:ok, _} = Ring.remove_node(name, "c")
+
+      assert {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+    end
+
+    test "increments the generation", %{name: name} do
+      {:ok, before_remove_generation} = Ring.get_ring_gen(name)
+
+      {:ok, _} = Ring.remove_node(name, "c")
+
+      {:ok, after_remove_generation} = Ring.get_ring_gen(name)
+
+      assert after_remove_generation == before_remove_generation + 1
+    end
+
+    test "remove node", %{name: name} do
+      expected_nodes = @nodes -- ["c"]
+      expected_nodes_with_replicas = for node <- expected_nodes, do: {node, @default_num_replicas}
+      {:ok, _} = Ring.remove_node(name, "c")
+      {:ok, ^expected_nodes} = Ring.get_nodes(name)
+      {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+      # Select a node that should now be b.
+      assert Ring.get_ring_gen(name) == {:ok, 2}
+      assert Ring.find_node(name, 1) == {:ok, "b"}
+    end
+
+    test "target resolves to secondary after primary removed", %{name: name} do
+      {:ok, [primary, secondary]} = Ring.find_nodes(name, 1, 2)
+
+      {:ok, _} = Ring.remove_node(name, primary)
+
+      assert Ring.find_node(name, 1) == {:ok, secondary}
+    end
+
+    test "error to remove unknown node", %{name: name} do
+      assert {:error, :node_not_exists} ==  Ring.remove_node(name, "unknown")
+    end
   end
 
-  test "add nodes with replicas", %{name: name} do
-    expected_nodes = ["d", "e"] ++ @nodes
-    expected_nodes_with_replicas = for node <- @nodes, do: {node, @default_num_replicas}
-    expected_nodes_with_replicas = [{"d", 100}, {"e", 100}] ++ expected_nodes_with_replicas
+  describe "remove_nodes/2" do
+    test "returns the retained nodes", %{name: name} do
+      expected_nodes = @nodes -- ["b", "c"]
+      expected_nodes_with_replicas = for node <- expected_nodes, do: {node, @default_num_replicas}
 
-    {:ok, previous_generation} = Ring.get_ring_gen(name)
+      assert {:ok, ^expected_nodes_with_replicas} = Ring.remove_nodes(name, ["b", "c"])
+    end
 
-    assert {:ok, ^expected_nodes_with_replicas} = Ring.add_nodes(name, [{"d", 100}, {"e", 100}])
-    assert {:ok, ^expected_nodes} = Ring.get_nodes(name)
-    assert {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+    test "has only the retained nodes after removal", %{name: name} do
+      expected_nodes = @nodes -- ["b", "c"]
 
-    {:ok, current_generation} = Ring.get_ring_gen(name)
+      {:ok, _} = Ring.remove_nodes(name, ["b", "c"])
 
-    assert current_generation == previous_generation + 1
-  end
+      assert {:ok, ^expected_nodes} = Ring.get_nodes(name)
+    end
 
-  test "add nodes mixed with and without replicas", %{name: name} do
-    expected_nodes = ["d", "e"] ++ @nodes
-    expected_nodes_with_replicas = for node <- @nodes, do: {node, @default_num_replicas}
-    expected_nodes_with_replicas = [{"d", @default_num_replicas}, {"e", 100}] ++ expected_nodes_with_replicas
+    test "retained nodes have the expected replicas", %{name: name} do
+      expected_nodes = @nodes -- ["b", "c"]
+      expected_nodes_with_replicas = for node <- expected_nodes, do: {node, @default_num_replicas}
 
-    {:ok, previous_generation} = Ring.get_ring_gen(name)
+      {:ok, _} = Ring.remove_nodes(name, ["b", "c"])
 
-    assert {:ok, ^expected_nodes_with_replicas} = Ring.add_nodes(name, ["d", {"e", 100}])
-    assert {:ok, ^expected_nodes} = Ring.get_nodes(name)
-    assert {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+      assert {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
+    end
 
-    {:ok, current_generation} = Ring.get_ring_gen(name)
+    test "only increments the generation by one", %{name: name} do
+      {:ok, before_remove_generation} = Ring.get_ring_gen(name)
+      {:ok, _} = Ring.remove_nodes(name, ["b", "c"])
+      {:ok, after_remove_generation} = Ring.get_ring_gen(name)
 
-    assert current_generation == previous_generation + 1
-  end
+      assert after_remove_generation == before_remove_generation + 1
+    end
 
+    test "targets resolve correctly after removal", %{name: name} do
+      {:ok, targets} = Ring.find_nodes(name, 1, 2)
 
-  test "remove node", %{name: name} do
-    expected_nodes = @nodes -- ["c"]
-    expected_nodes_with_replicas = for node <- expected_nodes, do: {node, @default_num_replicas}
-    {:ok, _} = Ring.remove_node(name, "c")
-    {:ok, ^expected_nodes} = Ring.get_nodes(name)
-    {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
-    # Select a node that should now be b.
-    assert Ring.get_ring_gen(name) == {:ok, 2}
-    assert Ring.find_node(name, 1) == {:ok, "b"}
+      {:ok, [{expected_node, _}]} = Ring.remove_nodes(name, targets)
+
+      assert Ring.find_node(name, 1) == {:ok, expected_node}
+    end
+
+    test "error to remove unknown nodes", %{name: name} do
+      assert {:error, :node_not_exists} == Ring.remove_nodes(name, ["unknown-1", "unknown-2"])
+    end
+
+    test "error to remove mixed known and unknown nodes", %{name: name} do
+      assert {:error, :node_not_exists} == Ring.remove_nodes(name, ["a", "unknown"])
+    end
   end
 
   test "set overrides", %{name: name} do
