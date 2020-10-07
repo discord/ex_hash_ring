@@ -15,6 +15,9 @@ defmodule ExHashRing.Hash do
   """
   @type t :: integer()
 
+  @doc """
+  Calculate a hash of the hashable term.
+  """
   @spec of(hashable()) :: t()
   def of(key) when is_binary(key) do
     <<_::binary-size(8), value::unsigned-little-integer-size(64)>> = :erlang.md5(key)

@@ -44,6 +44,15 @@ defmodule ExHashRing.Ring do
 
   ## Client
 
+  @doc """
+  Start and link a Ring with the given name.
+
+  Ring supports various options as outlined below.
+  - :named - Boolean that controls whether or not to register the process as a named process.  Defaults to false
+  - :nodes - Initial nodes for the Ring.  Defaults to []
+  - :overrides - Initial overrides for the Ring. Defaults to %{}
+  - :default_num_replicas - Replicas to use for nodes that do not define replicas. Defaults to #{@default_num_replicas}
+  """
   @spec start_link(name(), opts :: Keyword.t()) :: GenServer.on_start()
   def start_link(name, opts \\ []) do
     named = Keyword.get(opts, :named, false)
@@ -181,7 +190,7 @@ defmodule ExHashRing.Ring do
   end
 
   @doc """
-  Stops the GenServer holding the HashRing.
+  Stops the GenServer holding the Ring.
   """
   @spec stop(name :: atom()) :: :ok
   def stop(name) do
@@ -383,6 +392,42 @@ defmodule ExHashRing.Ring do
 
   ## Private
 
+  @spec do_find_nodes(
+    table :: :ets.tid(),
+    gen :: Config.generation(),
+    num_nodes :: Config.num_nodes(),
+    remaining :: non_neg_integer(),
+    hash :: Hash.t(),
+    found :: [Node.name()],
+    found_length :: non_neg_integer()
+  ) :: [Node.name()]
+  defp do_find_nodes(_table, _gen, _num_nodes, 0, _hash, found, _found_length) do
+    # Remaining is now 0, all the requested nodes have been found
+    Enum.reverse(found)
+  end
+
+  defp do_find_nodes(_table, _gen, num_nodes, _remaining, _hash, found, num_nodes) do
+    # Number of found nodes and number of nodes in the ring are equal, further processing will yield no additional results
+    Enum.reverse(found)
+  end
+
+  defp do_find_nodes(table, gen, num_nodes, remaining, hash, found, found_length) do
+    {next_highest_hash, name} = find_next_highest_item(table, gen, num_nodes, hash)
+
+    {remaining, found, found_length} =
+      if name in found do
+        # This node is already in the result set, skip it
+        {remaining, found, found_length}
+      else
+        # Add node to the result set and decrement remaining
+        {remaining - 1, [name | found], found_length + 1}
+      end
+
+    # Continue from the next_highest_hash
+    do_find_nodes(table, gen, num_nodes, remaining, next_highest_hash, found, found_length)
+  end
+
+
   @spec do_find_nodes_in_table(
     key :: key(),
     table :: :ets.tid(),
@@ -416,38 +461,40 @@ defmodule ExHashRing.Ring do
     {:ok, do_find_nodes(table, gen, num_nodes, max(num - found_length, 0), Hash.of(key), found, found_length)}
   end
 
-  defp do_find_nodes(_table, _gen, _num_nodes, 0, _hash, found, _found_length) do
-    Enum.reverse(found)
+  @spec do_ring_gen_gc(table :: :ets.tid(), ring_gen :: Config.generation()) :: :ok
+  defp do_ring_gen_gc(table, ring_gen) do
+    :ets.match_delete(table, {{ring_gen, :_}, :_})
+    :ok
   end
 
-  defp do_find_nodes(_table, _gen, num_nodes, _remaining, _hash, found, num_nodes) do
-    Enum.reverse(found)
+  @spec find_next_highest_item(table :: :ets.tid, ring_gen :: Config.generation(), num_nodes :: Config.num_nodes(), hash :: Hash.t()) :: Node.virtual()
+  defp find_next_highest_item(_table, _ring_gen, 0, _hash) do
+    nil
   end
 
-  defp do_find_nodes(table, gen, num_nodes, remaining, hash, found, found_length) do
-    {number, node} = find_next_highest_item(table, gen, num_nodes, hash)
+  defp find_next_highest_item(table, ring_gen, _num_nodes, hash) do
+    key =
+      case :ets.next(table, {ring_gen, hash}) do
+        {^ring_gen, _hash} = key ->
+          key
 
-    if node in found do
-      do_find_nodes(
-        table,
-        gen,
-        num_nodes,
-        remaining,
-        number,
-        found,
-        found_length
-      )
-    else
-      do_find_nodes(
-        table,
-        gen,
-        num_nodes,
-        remaining - 1,
-        number,
-        [node | found],
-        found_length + 1
-      )
+        _ ->
+          # Generation is exhausted, start back up at the top of this generation.
+          :ets.next(table, {ring_gen, -1})
+      end
+
+    case :ets.lookup(table, key) do
+      [{{^ring_gen, hash}, node}] ->
+        {hash, node}
+
+      _ ->
+        nil
     end
+  end
+
+  @spec has_node_with_name?(nodes :: [Node.t()], node_name :: Name.name()) :: boolean()
+  defp has_node_with_name?(nodes, node_name) do
+    Enum.any?(nodes, &match?({^node_name, _}, &1))
   end
 
   @spec update_nodes(state :: t(), nodes :: [Node.t()]) :: t()
@@ -511,40 +558,5 @@ defmodule ExHashRing.Ring do
 
     # Update and return the state
     %__MODULE__{state | overrides: overrides}
-  end
-
-  @spec do_ring_gen_gc(table :: :ets.tid(), ring_gen :: Config.generation()) :: :ok
-  defp do_ring_gen_gc(table, ring_gen) do
-    :ets.match_delete(table, {{ring_gen, :_}, :_})
-    :ok
-  end
-
-  @spec find_next_highest_item(table :: :ets.tid, ring_gen :: Config.generation(), num_nodes :: Config.num_nodes(), hash :: Hash.t()) :: Node.virtual()
-  defp find_next_highest_item(_table, _ring_gen, 0, _hash) do
-    nil
-  end
-
-  defp find_next_highest_item(table, ring_gen, _num_nodes, hash) do
-    key =
-      case :ets.next(table, {ring_gen, hash}) do
-        {^ring_gen, _hash} = key ->
-          key
-
-        _ ->
-          :ets.next(table, {ring_gen, -1})
-      end
-
-    case :ets.lookup(table, key) do
-      [{{^ring_gen, number}, node}] ->
-        {number, node}
-
-      _ ->
-        nil
-    end
-  end
-
-  @spec has_node_with_name?(nodes :: [Node.t()], node_name :: Name.name()) :: boolean()
-  defp has_node_with_name?(nodes, node_name) do
-    Enum.any?(nodes, &match?({^node_name, _}, &1))
   end
 end
