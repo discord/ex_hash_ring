@@ -452,7 +452,7 @@ defmodule ETSHashRingOperationsTest do
     {:ok, previous_generation} = Ring.get_ring_gen(name)
 
     # Find primary and secondary for the currrent configuration
-    {:ok, [primary_a, secondary_a]} = Ring.find_nodes(name, 1, 2)
+    {:ok, [original_primary, original_secondary]} = Ring.find_nodes(name, 1, 2)
 
     # Add multiple new nodes to the ring
     {:ok, _} = Ring.add_nodes(name, ["d", "e", "f", "g", "h", "i", "j", "k"])
@@ -463,17 +463,17 @@ defmodule ETSHashRingOperationsTest do
     assert current_generation == previous_generation + 1
 
     # Find primary and secondary for the new configuration
-    {:ok, [primary_b, secondary_b]} = Ring.find_nodes(name, 1, 2)
+    {:ok, [new_primary, new_secondary]} = Ring.find_nodes(name, 1, 2)
 
     # Assert that the new configuration assigns different nodes to the target
-    assert primary_a != primary_b
-    assert secondary_a != secondary_b
+    assert original_primary != new_primary
+    assert original_secondary != new_secondary
 
-    {:ok, [primary_c, secondary_c]} = Ring.find_previous_nodes(name, 1, 2)
+    {:ok, [previous_primary, previous_secondary]} = Ring.find_previous_nodes(name, 1, 2)
 
     # Assert that the new configuration's previous generation can be queried
-    assert primary_a == primary_c
-    assert secondary_a == secondary_c
+    assert original_primary == previous_primary
+    assert original_secondary == previous_secondary
   end
 
   test "find_stable_nodes" do

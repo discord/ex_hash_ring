@@ -63,8 +63,14 @@ defmodule ExHashRing.HashRing.ETS do
   Adds a node to the existing set of nodes in the ring.
   """
   @spec add_node(atom, binary, integer) :: {:ok, [{binary, integer}]} | {:error, :node_exists}
-  def add_node(name, node_name, num_replicas \\ nil) do
-    GenServer.call(name, {:add_node, node_name, num_replicas})
+  def add_node(name, node_name, num_replicas \\ nil)
+
+  def add_node(name, node_name, nil) do
+    GenServer.call(name, {:add_nodes, [node_name]})
+  end
+
+  def add_node(name, node_name, num_replicas) do
+    GenServer.call(name, {:add_nodes, [{node_name, num_replicas}]})
   end
 
   @doc """
@@ -107,7 +113,8 @@ defmodule ExHashRing.HashRing.ETS do
 
   @doc """
   Finds the specified number of nodes responsible for the given key in the specified ring's current generation AND in
-  the specified ring's previous generation.  This means that this function returns up to 2 * number of nodes requested.
+  the specified ring's previous generation.  This means that this function returns up to 2 * `num`; where `num` = number
+  of nodes requested.
   """
   @spec find_stable_nodes(atom, binary | integer, integer) :: {:ok, [binary]} | {:error, atom}
   def find_stable_nodes(name, key, num) do
@@ -184,7 +191,7 @@ defmodule ExHashRing.HashRing.ETS do
   """
   @spec remove_node(atom, binary) :: {:ok, [{binary, integer}]} | {:error, :node_not_exists}
   def remove_node(name, node_name) do
-    GenServer.call(name, {:remove_node, node_name})
+    GenServer.call(name, {:remove_nodes, [node_name]})
   end
 
   @doc """
@@ -275,55 +282,31 @@ defmodule ExHashRing.HashRing.ETS do
     {:reply, {:ok, nodes}, update_nodes(state, nodes)}
   end
 
-  def handle_call(
-        {:add_node, node_name, nil},
-        from,
-        %{default_num_replicas: default_num_replicas} = state
-      ) do
-    handle_call({:add_node, node_name, default_num_replicas}, from, state)
-  end
-
-  def handle_call({:add_node, node_name, num_replicas}, _from, %{nodes: nodes} = state) do
-    if has_node_with_name?(nodes, node_name) do
-      {:reply, {:error, :node_exists}, state}
-    else
-      nodes = [{node_name, num_replicas} | nodes]
-      {:reply, {:ok, nodes}, update_nodes(state, nodes)}
-    end
-  end
-
   def handle_call({:add_nodes, nodes}, _from, %__MODULE__{} = state) do
     nodes = transform_nodes(nodes, state.default_num_replicas)
 
-    existing_nodes = Enum.filter(nodes, fn {name, _} ->
+    has_existing_nodes? = Enum.any?(nodes, fn {name, _} ->
       has_node_with_name?(state.nodes, name)
     end)
 
-    if Enum.empty?(existing_nodes) do
+    if has_existing_nodes? do
+      {:reply, {:error, :node_exists}, state}
+    else
       nodes = nodes ++ state.nodes
       {:reply, {:ok, nodes}, update_nodes(state, nodes)}
-    else
-      {:reply, {:error, :node_exists}, state}
-    end
-  end
-
-  def handle_call({:remove_node, node_name}, _from, %{nodes: nodes} = state) do
-    if has_node_with_name?(nodes, node_name) do
-      nodes = Enum.reject(nodes, fn {existing_node, _} -> existing_node == node_name end)
-      {:reply, {:ok, nodes}, update_nodes(state, nodes)}
-    else
-      {:reply, {:error, :node_not_exists}, state}
     end
   end
 
   def handle_call({:remove_nodes, node_names}, _from, %__MODULE__{} = state) do
-    unknown_nodes = Enum.reject(node_names, &has_node_with_name?(state.nodes, &1))
+    has_unknown_nodes? = Enum.any?(node_names, fn name ->
+      not has_node_with_name?(state.nodes, name)
+    end)
 
-    if Enum.empty?(unknown_nodes) do
+    if has_unknown_nodes? do
+      {:reply, {:error, :node_not_exists}, state}
+    else
       nodes = Enum.reject(state.nodes, fn {name, _} -> name in node_names end)
       {:reply, {:ok, nodes}, update_nodes(state, nodes)}
-    else
-      {:reply, {:error, :node_not_exists}, state}
     end
   end
 
@@ -515,15 +498,8 @@ defmodule ExHashRing.HashRing.ETS do
       end)
 
     # Update the current configuration
-    case Config.get(state.name) do
-      {:ok, {current_table, previous_table, gen, _old_overrides}} ->
-        Config.set(state.name(), self(), {current_table, previous_table, gen, overrides})
-
-      _ ->
-        current_table = {state.current_table, length(state.nodes)}
-        previous_table = {state.previous_table, 0}
-        Config.set(state.name(), self(), {current_table, previous_table, state.ring_gen, overrides})
-    end
+    {:ok, {current_table, previous_table, gen, _old_overrides}} = Config.get(state.name)
+    Config.set(state.name, self(), {current_table, previous_table, gen, overrides})
 
     # Update and return the state
     %__MODULE__{state | overrides: overrides}
