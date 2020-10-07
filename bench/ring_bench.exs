@@ -1,6 +1,6 @@
-defmodule ETSHashRingBench do
+defmodule ExHashRing.Ring.Benchmark do
   use Benchfella
-  alias ExHashRing.HashRing.ETS, as: Ring
+  alias ExHashRing.{Config, Ring}
 
   @name HashRingBench.ETSRing
   @nodes ["hash-ring-1-1", "hash-ring-1-2", "hash-ring-1-3", "hash-ring-1-4"]
@@ -8,7 +8,7 @@ defmodule ETSHashRingBench do
   @overrides %{"1234254543" => [1]}
 
   setup_all do
-    Ring.Config.start_link()
+    Config.start_link()
     {:ok, nil}
   end
 

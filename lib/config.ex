@@ -1,12 +1,39 @@
-defmodule ExHashRing.HashRing.ETS.Config do
+defmodule ExHashRing.Config do
   use GenServer
 
+  alias ExHashRing.{Hash, Node}
+
   @type t :: %__MODULE__{}
-  @type ring_gen :: integer
-  @type num_nodes :: integer
-  @type override_map :: %{atom => [binary]}
+
+  @typedoc """
+  Generations are used so that changes to the ring can be applied atomically.  Mutating the Ring in ETS requires
+  multiple independent operations, all entries in the ring are identified by a configurtion generation and the only
+  after all changes have been applied successfully to the Ring in ETS is the configuration's generation updated to
+  point at the new entries.
+  """
+  @type generation :: pos_integer()
+
+  @typedoc """
+  The number of logical nodes in the ring.
+  """
+  @type num_nodes :: non_neg_integer()
+
+  @typedoc """
+  Overrides allow the Ring to always resolve a given key to a list of nodes.
+  """
+  @type override_map :: %{Hash.key() => [Node.name()]}
+
+  @typedoc """
+  Table configurations package up the table and the number of logical nodes in the authoritative generation.
+  """
   @type table_config :: {:ets.tid(), num_nodes()}
-  @type config ::{current :: table_config(), previous :: table_config(), ring_gen(), override_map()}
+
+  @typedoc """
+  For any ring name a configuration can be looked up that will provide information about the table holding the current
+  ring, the table holding the previous ring, the current generation, and any overrides that should be applied during
+  lookup
+  """
+  @type config ::{current :: table_config(), previous :: table_config(), generation(), override_map()}
 
   defstruct monitored_pids: %{}
 

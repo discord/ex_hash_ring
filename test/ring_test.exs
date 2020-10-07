@@ -1,7 +1,9 @@
-defmodule ETSHashRingTest do
+defmodule ExHashRing.Ring.Test do
   use ExUnit.Case
-  alias HashRingTest.Support.Harness
-  alias ExHashRing.HashRing.ETS, as: Ring
+
+  alias ExHashRing.Ring
+  alias ExHashRing.Support.Harness
+
 
   setup_all do
     rings =
@@ -40,8 +42,9 @@ end
 
 defmodule ETSHashRingOverrideTest do
   use ExUnit.Case
-  alias HashRingTest.Support.Harness
-  alias ExHashRing.HashRing.ETS, as: Ring
+
+  alias ExHashRing.Ring
+  alias ExHashRing.Support.Harness
 
   @custom_overrides ["override_string", :override_atom, 123]
   @harness_single_overrides Harness.keys() |> Enum.take(5)
@@ -110,7 +113,8 @@ end
 
 defmodule ETSHashRingOperationsTest do
   use ExUnit.Case
-  alias ExHashRing.HashRing.ETS, as: Ring
+
+  alias ExHashRing.{Config, Ring}
 
   @default_num_replicas 512
   @nodes ["a", "b", "c"]
@@ -385,9 +389,9 @@ defmodule ETSHashRingOperationsTest do
   end
 
   test "ets config will remove config", %{name: name} do
-    refute Ring.Config.get(name) == {:error, :no_ring}
+    refute Config.get(name) == {:error, :no_ring}
     assert Ring.stop(name) == :ok
-    assert await(fn -> Ring.Config.get(name) == {:error, :no_ring} end)
+    assert await(fn -> Config.get(name) == {:error, :no_ring} end)
   end
 
   test "ring gen gc happens", %{name: name} do
@@ -514,7 +518,7 @@ defmodule ETSHashRingOperationsTest do
   end
 
   defp count_ring_gen_entries(name, ring_gen) do
-    {:ok, {{table, _}, _, _, _}} = Ring.Config.get(name)
+    {:ok, {{table, _}, _, _, _}} = Config.get(name)
 
     :ets.tab2list(table)
     |> Enum.filter(fn {{ring_gen_, _}, _} -> ring_gen_ == ring_gen end)
@@ -522,7 +526,7 @@ defmodule ETSHashRingOperationsTest do
   end
 
   defp ring_ets_table_size(name) do
-    {:ok, {{table, _}, _previous, _ring_gen, _overrides}} = Ring.Config.get(name)
+    {:ok, {{table, _}, _previous, _ring_gen, _overrides}} = Config.get(name)
     :ets.info(table, :size)
   end
 
