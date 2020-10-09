@@ -645,6 +645,34 @@ defmodule ExHashRing.Ring.Operations.Test do
       # Assert that the newest primary is at the head of the stable nodes
       assert third_primary == hd(stable_nodes)
     end
+
+    test "order is newest generation to oldest generation preserving the order of those generations" do
+      name = ExHashRing.Ring.Test.Stable
+
+      first_generation_nodes = Enum.map(1..100, &"node-#{&1}")
+      second_generation_nodes = Enum.map(101..200, &"node-#{&1}")
+      third_generation_nodes = Enum.map(201..300, &"node-#{&1}")
+
+      {:ok, _pid} = Ring.start_link(name, depth: 3, nodes: first_generation_nodes, named: true)
+
+      {:ok, first_nodes} = Ring.find_nodes(name, 1, 3)
+
+      # Create the second generation
+      {:ok, _} = Ring.add_nodes(name, second_generation_nodes)
+
+      {:ok, second_nodes} = Ring.find_nodes(name, 1, 3)
+
+      # Create the third generation
+      {:ok, _} = Ring.add_nodes(name, third_generation_nodes)
+
+      {:ok, third_nodes} = Ring.find_nodes(name, 1, 3)
+
+      expected = Enum.uniq(third_nodes ++ second_nodes ++ first_nodes)
+
+      {:ok, stable_nodes} = Ring.find_stable_nodes(name, 1, 3, 3)
+
+      assert expected == stable_nodes
+    end
   end
 
 
