@@ -2,7 +2,7 @@ defmodule ExHashRing.Ring.Benchmark do
   use Benchfella
   alias ExHashRing.{Config, Ring}
 
-  @name HashRingBench.ETSRing
+  @name ExHashRing.Ring.Benchmark.Ring
   @nodes ["hash-ring-1-1", "hash-ring-1-2", "hash-ring-1-3", "hash-ring-1-4"]
   @replicas 512
   @overrides %{"1234254543" => [1]}
@@ -71,6 +71,14 @@ defmodule ExHashRing.Ring.Benchmark do
     :ok
   end
 
+  bench "find_stable_ndoes(num: 2, depth: 2)", ring: new_ring_with_previous(@overrides) do
+    Ring.find_stable_nodes(ring, "0", 2, 2)
+  end
+
+  bench "find_stable_ndoes(num: 3, depth: 2)", ring: new_ring_with_previous(@overrides) do
+    Ring.find_stable_nodes(ring, "0", 3, 2)
+  end
+
   bench "regenerate ring & gc", ring: new_ring() do
     Ring.set_nodes(ring, @nodes)
     Ring.force_gc(ring)
@@ -80,10 +88,10 @@ defmodule ExHashRing.Ring.Benchmark do
   defp new_ring(overrides \\ %{}) do
     {:ok, _} =
       Ring.start_link(@name,
+        named: true,
         nodes: @nodes,
-        num_replicas: @replicas,
         overrides: overrides,
-        named: true
+        replicas: @replicas
       )
 
     @name
@@ -94,10 +102,11 @@ defmodule ExHashRing.Ring.Benchmark do
 
     {:ok, _} =
       Ring.start_link(@name,
+        depth: 2,
+        named: true,
         nodes: original_nodes,
-        num_replicas: @replicas,
-        overrides: overrides,
-        named: true
+        replicas: @replicas,
+        overrides: overrides
       )
 
     Ring.set_nodes(@name, @nodes)

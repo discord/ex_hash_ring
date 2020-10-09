@@ -1,7 +1,7 @@
 defmodule ExHashRing.Config do
   use GenServer
 
-  alias ExHashRing.{Hash, Node}
+  alias ExHashRing.{Hash, Node, Ring}
 
   @type t :: %__MODULE__{}
 
@@ -14,26 +14,22 @@ defmodule ExHashRing.Config do
   @type generation :: pos_integer()
 
   @typedoc """
-  The number of logical nodes in the ring.
-  """
-  @type num_nodes :: non_neg_integer()
-
-  @typedoc """
   Overrides allow the Ring to always resolve a given key to a list of nodes.
   """
   @type override_map :: %{Hash.key() => [Node.name()]}
 
   @typedoc """
-  Table configurations package up the table and the number of logical nodes in the authoritative generation.
+  For any ring name a configuration can be looked up that will provide information about the table holding the ring
+  data, the configured history depth, sizes for each generation in the history, the current generation, and any
+  overrides that should be applied during lookup.
   """
-  @type table_config :: {:ets.tid(), num_nodes()}
-
-  @typedoc """
-  For any ring name a configuration can be looked up that will provide information about the table holding the current
-  ring, the table holding the previous ring, the current generation, and any overrides that should be applied during
-  lookup
-  """
-  @type config ::{current :: table_config(), previous :: table_config(), generation(), override_map()}
+  @type config :: {
+    table :: :ets.tid(),
+    depth :: Ring.depth(),
+    sizes :: [Ring.size()],
+    generation(),
+    override_map()
+  }
 
   defstruct monitored_pids: %{}
 
