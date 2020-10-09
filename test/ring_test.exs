@@ -548,42 +548,106 @@ defmodule ExHashRing.Ring.Operations.Test do
     assert original_secondary == previous_secondary
   end
 
-  test "find_stable_nodes" do
-    name = HashRingETSTest.Stable
+  describe "find_stable_nodes/3" do
+    test "resolves expected nodes when depth 2" do
+      name = ExHashRing.Ring.Test.Stable
 
-    {:ok, _pid} = Ring.start_link(name, depth: 2, nodes: @nodes, named: true)
+      {:ok, _pid} = Ring.start_link(name, depth: 2, nodes: @nodes, named: true)
 
-    {:ok, previous_generation} = Ring.get_generation(name)
+      {:ok, first_generation} = Ring.get_generation(name)
 
-    # Find primary and secondary for the currrent configuration
-    {:ok, [primary_a, secondary_a]} = Ring.find_nodes(name, 1, 2)
+      # Find primary and secondary for the currrent configuration
+      {:ok, [first_primary, first_secondary]} = Ring.find_nodes(name, 1, 2)
 
-    # Add multiple new nodes to the ring
-    {:ok, _} = Ring.add_nodes(name, ["d", "e", "f", "g", "h", "i", "j", "k"])
+      # Add multiple new nodes to the ring
+      {:ok, _} = Ring.add_nodes(name, ["d", "e", "f", "g", "h", "i", "j", "k"])
 
-    {:ok, current_generation} = Ring.get_generation(name)
+      {:ok, second_generation} = Ring.get_generation(name)
 
-    # Adding nodes atomically should increment the generation by 1
-    assert current_generation == previous_generation + 1
+      # Adding nodes atomically should increment the generation by 1
+      assert second_generation == first_generation + 1
 
-    # Find primary and secondary for the new configuration
-    {:ok, [primary_b, secondary_b]} = Ring.find_nodes(name, 1, 2)
+      # Find primary and secondary for the new configuration
+      {:ok, [second_primary, second_secondary]} = Ring.find_nodes(name, 1, 2)
 
-    # Assert that the new configuration assigns different nodes to the target
-    assert primary_a != primary_b
-    assert secondary_a != secondary_b
+      # Assert that the new configuration assigns different nodes to the target
+      assert first_primary != second_primary
+      assert first_secondary != second_secondary
 
-    {:ok, stable_nodes} = Ring.find_stable_nodes(name, 1, 2)
+      {:ok, stable_nodes} = Ring.find_stable_nodes(name, 1, 2)
 
-    # Assert that both the current and previous generation's nodes are in the stable_nodes
-    assert primary_a in stable_nodes
-    assert primary_b in stable_nodes
-    assert secondary_a in stable_nodes
-    assert secondary_b in stable_nodes
+      # Assert that both the first and second generation's nodes are in the stable_nodes
+      assert first_primary in stable_nodes
+      assert second_primary in stable_nodes
+      assert first_secondary in stable_nodes
+      assert second_secondary in stable_nodes
 
-    # Assert that the newest primary is at the head of the stable nodes
-    assert primary_b == hd(stable_nodes)
+      # Assert that no other nodes are returned than the first and second generation's nodes
+      assert stable_nodes -- [first_primary, second_primary, first_secondary, second_secondary] == []
+
+      # Assert that the newest primary is at the head of the stable nodes
+      assert second_primary == hd(stable_nodes)
+    end
+
+    test "resolves expected nodes when depth 3" do
+      name = ExHashRing.Ring.Test.Stable
+
+      {:ok, _pid} = Ring.start_link(name, depth: 3, nodes: @nodes, named: true)
+
+      {:ok, first_generation} = Ring.get_generation(name)
+
+      # Find primary and secondary for the currrent configuration
+      {:ok, [first_primary, first_secondary]} = Ring.find_nodes(name, 1, 2)
+
+      # Add multiple new nodes to the ring
+      {:ok, _} = Ring.add_nodes(name, ["d", "e", "f", "g", "h", "i", "j", "k"])
+
+      {:ok, second_generation} = Ring.get_generation(name)
+
+      # Adding nodes atomically should increment the generation by 1
+      assert second_generation == first_generation + 1
+
+      # Find primary and secondary for the new configuration
+      {:ok, [second_primary, second_secondary]} = Ring.find_nodes(name, 1, 2)
+
+      # Assert that the new configuration assigns different nodes to the target
+      assert first_primary != second_primary
+      assert first_secondary != second_secondary
+
+      # Add multiple new nodes to the ring
+      {:ok, _} = Ring.add_nodes(name, ["l", "m", "n", "o", "p", "q", "r", "s"])
+
+      {:ok, third_generation} = Ring.get_generation(name)
+
+      # Adding nodes atomically should increment the generation by 1
+      assert third_generation == second_generation + 1
+
+      # Find primary and secondary for the new configuration
+      {:ok, [third_primary, third_secondary]} = Ring.find_nodes(name, 1, 2)
+
+      # Assert that the new configuration assigns different nodes to the target
+      assert third_primary != second_primary
+      assert third_secondary != second_secondary
+
+      {:ok, stable_nodes} = Ring.find_stable_nodes(name, 1, 2)
+
+      # Assert that the first, second, and third generation's nodes are in the stable_nodes
+      assert first_primary in stable_nodes
+      assert second_primary in stable_nodes
+      assert third_primary in stable_nodes
+      assert first_secondary in stable_nodes
+      assert second_secondary in stable_nodes
+      assert third_secondary in stable_nodes
+
+      # Assert that no other nodes are returned than the first, second, and third generation's nodes
+      assert stable_nodes -- [first_primary, second_primary, third_primary, first_secondary, second_secondary, third_secondary] == []
+
+      # Assert that the newest primary is at the head of the stable nodes
+      assert third_primary == hd(stable_nodes)
+    end
   end
+
+
 
   defp count_generation_entries(name, generation) do
     {:ok, {table, _depth, _sizes, _genertion, _overrids}} = Config.get(name)
