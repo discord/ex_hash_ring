@@ -71,11 +71,11 @@ defmodule ExHashRing.Ring.Benchmark do
     :ok
   end
 
-  bench "find_stable_ndoes(num: 2, depth: 2)", ring: new_ring_with_previous(@overrides) do
+  bench "find_stable_nodes(num: 2, depth: 2)", ring: new_ring_with_previous(@overrides) do
     Ring.find_stable_nodes(ring, "0", 2, 2)
   end
 
-  bench "find_stable_ndoes(num: 3, depth: 2)", ring: new_ring_with_previous(@overrides) do
+  bench "find_stable_nodes(num: 3, depth: 2)", ring: new_ring_with_previous(@overrides) do
     Ring.find_stable_nodes(ring, "0", 3, 2)
   end
 

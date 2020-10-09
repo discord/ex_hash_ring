@@ -146,8 +146,9 @@ defmodule ExHashRing.Ring do
   """
   @spec find_historical_nodes(name(), key(), num :: non_neg_integer(), back :: non_neg_integer()) :: {:ok, [Node.name()]} | {:error, atom}
   def find_historical_nodes(name, key, num, back) do
-    with {:ok, config} <- Config.get(name) do
-      do_find_historical_nodes(key, num, back, config)
+    with {:ok, config} <- Config.get(name),
+         {:ok, nodes} <- do_find_historical_nodes(key, num, back, config) do
+      {:ok, Enum.reverse(nodes)}
     end
   end
 
@@ -157,8 +158,9 @@ defmodule ExHashRing.Ring do
   """
   @spec find_stable_nodes(name(), key(), num :: non_neg_integer()) :: {:ok, [Node.name()]} | {:error, atom}
   def find_stable_nodes(name, key, num) do
-    with {:ok, {_table, depth, _sizes, _generation, _overrides} = config} <- Config.get(name) do
-      do_find_stable_nodes(key, num, depth, config)
+    with {:ok, {_table, depth, _sizes, _generation, _overrides} = config} <- Config.get(name),
+         {:ok, nodes} <- do_find_stable_nodes(key, num, depth, config) do
+      {:ok, Enum.reverse(nodes)}
     end
   end
 
@@ -169,8 +171,9 @@ defmodule ExHashRing.Ring do
   """
   @spec find_stable_nodes(name(), key(), num :: non_neg_integer(), back :: pos_integer()) :: {:ok, [Node.name()]} | {:error, atom}
   def find_stable_nodes(name, key, num, back) do
-    with {:ok, config} <- Config.get(name) do
-      do_find_stable_nodes(key, num, back, config)
+    with {:ok, config} <- Config.get(name),
+         {:ok, nodes} <- do_find_stable_nodes(key, num, back, config) do
+      {:ok, Enum.reverse(nodes)}
     end
   end
 
@@ -437,12 +440,12 @@ defmodule ExHashRing.Ring do
   ) :: [Node.name()]
   defp do_find_nodes(_table, _generation, _size, 0, _hash, found, _found_length) do
     # Remaining is now 0, all the requested nodes have been found
-    Enum.reverse(found)
+    found
   end
 
   defp do_find_nodes(_table, _generation, size, _remaining, _hash, found, size) do
     # Number of found nodes and number of nodes in the ring are equal, further processing will yield no additional results
-    Enum.reverse(found)
+    found
   end
 
   defp do_find_nodes(table, generation, size, remaining, hash, found, found_length) do
@@ -501,11 +504,18 @@ defmodule ExHashRing.Ring do
     config :: Config.config()
   ) :: {:ok, [Node.name()]} | {:error, atom()}
   def do_find_stable_nodes(key, num, back, config) do
-    stable_nodes =
-      Enum.reduce_while(0..back, {:ok, []}, fn back, {:ok, acc} ->
+    Enum.reduce_while(0..back, {:ok, []}, fn
+      back, {:ok, []} ->
+        with {:ok, nodes} <- do_find_historical_nodes(key, num, back, config) do
+          {:cont, {:ok, nodes}}
+        end
+
+      back, {:ok, acc} ->
         with {:ok, nodes} <- do_find_historical_nodes(key, num, back, config) do
           acc =
-            Enum.reduce(nodes, acc, fn node, acc ->
+            nodes
+            |> Enum.reverse()
+            |> Enum.reduce(acc, fn node, acc ->
               if node in acc do
                 acc
               else
@@ -517,11 +527,7 @@ defmodule ExHashRing.Ring do
           error ->
             {:halt, error}
         end
-      end)
-
-    with {:ok, nodes} <- stable_nodes do
-      {:ok, Enum.reverse(nodes)}
-    end
+    end)
   end
 
   @spec do_gc(table :: :ets.tid(), generation :: Config.generation()) :: :ok

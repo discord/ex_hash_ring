@@ -550,7 +550,7 @@ defmodule ExHashRing.Ring.Operations.Test do
 
   describe "find_stable_nodes/3" do
     test "resolves expected nodes when depth 2" do
-      name = ExHashRing.Ring.Test.Stable
+      name = ExHashRing.Ring.Test.Stable.Depth2
 
       {:ok, _pid} = Ring.start_link(name, depth: 2, nodes: @nodes, named: true)
 
@@ -590,7 +590,7 @@ defmodule ExHashRing.Ring.Operations.Test do
     end
 
     test "resolves expected nodes when depth 3" do
-      name = ExHashRing.Ring.Test.Stable
+      name = ExHashRing.Ring.Test.Stable.Depth3
 
       {:ok, _pid} = Ring.start_link(name, depth: 3, nodes: @nodes, named: true)
 
