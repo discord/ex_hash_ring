@@ -4,10 +4,10 @@ defmodule ExHashRing.Ring do
   alias ExHashRing.{Config, Hash, Node, Settings, Utils}
 
   @compile {:inline,
-            do_find_historical_nodes: 4,
-            do_find_nodes_in_table: 6,
+            do_find_historical_nodes: 5,
+            do_find_nodes_in_table: 7,
             do_find_nodes: 7,
-            do_find_stable_nodes: 4,
+            do_find_stable_nodes: 5,
             find_next_highest_item: 4,
             find_node: 2,
             find_nodes: 3,
@@ -147,7 +147,8 @@ defmodule ExHashRing.Ring do
   @spec find_historical_nodes(name(), key(), num :: non_neg_integer(), back :: non_neg_integer()) :: {:ok, [Node.name()]} | {:error, atom}
   def find_historical_nodes(name, key, num, back) do
     with {:ok, config} <- Config.get(name),
-         {:ok, nodes} <- do_find_historical_nodes(key, num, back, config) do
+         hash = Hash.of(key),
+         {:ok, nodes} <- do_find_historical_nodes(key, hash, num, back, config) do
       {:ok, Enum.reverse(nodes)}
     end
   end
@@ -159,7 +160,8 @@ defmodule ExHashRing.Ring do
   @spec find_stable_nodes(name(), key(), num :: non_neg_integer()) :: {:ok, [Node.name()]} | {:error, atom}
   def find_stable_nodes(name, key, num) do
     with {:ok, {_table, depth, _sizes, _generation, _overrides} = config} <- Config.get(name),
-         {:ok, nodes} <- do_find_stable_nodes(key, num, depth, config) do
+         hash = Hash.of(key),
+         {:ok, nodes} <- do_find_stable_nodes(key, hash, num, depth, config) do
       {:ok, Enum.reverse(nodes)}
     end
   end
@@ -172,7 +174,8 @@ defmodule ExHashRing.Ring do
   @spec find_stable_nodes(name(), key(), num :: non_neg_integer(), back :: pos_integer()) :: {:ok, [Node.name()]} | {:error, atom}
   def find_stable_nodes(name, key, num, back) do
     with {:ok, config} <- Config.get(name),
-         {:ok, nodes} <- do_find_stable_nodes(key, num, back, config) do
+         hash = Hash.of(key),
+         {:ok, nodes} <- do_find_stable_nodes(key, hash, num, back, config) do
       {:ok, Enum.reverse(nodes)}
     end
   end
@@ -413,11 +416,12 @@ defmodule ExHashRing.Ring do
 
   @spec do_find_historical_nodes(
     key(),
+    hash :: Hash.t(),
     num :: non_neg_integer(),
     back :: non_neg_integer(),
     config :: Config.config()
   ) :: {:ok, [Node.name()]} | {:error, atom()}
-  defp do_find_historical_nodes(key, num, back, config) do
+  defp do_find_historical_nodes(key, hash, num, back, config) do
     {table, _depth, sizes, generation, overrides} = config
 
     case Enum.at(sizes, back) do
@@ -425,7 +429,7 @@ defmodule ExHashRing.Ring do
         {:ok, []}
 
       size ->
-        do_find_nodes_in_table(key, table, overrides, generation - back, size, num)
+        do_find_nodes_in_table(key, hash, table, overrides, generation - back, size, num)
     end
   end
 
@@ -466,25 +470,26 @@ defmodule ExHashRing.Ring do
 
   @spec do_find_nodes_in_table(
     key :: key(),
+    hash :: Hash.t(),
     table :: :ets.tid(),
     overrides :: Config.override_map(),
     gen :: Config.generation(),
     num_nodes :: Config.num_nodes(),
     num :: non_neg_integer()
   ) :: {:ok, [binary]} | {:error, term}
-  defp do_find_nodes_in_table(_key, _table, _overrides, _gen, 0, _num) do
+  defp do_find_nodes_in_table(_key, _hash, _table, _overrides, _gen, 0, _num) do
     {:error, :invalid_ring}
   end
 
-  defp do_find_nodes_in_table(_key, _table, _overrides, _gen, _num_nodes, 0) do
+  defp do_find_nodes_in_table(_key, _hash, _table, _overrides, _gen, _num_nodes, 0) do
     {:ok, []}
   end
 
-  defp do_find_nodes_in_table(key, table, overrides, gen, num_nodes, num) when map_size(overrides) == 0 do
-    {:ok, do_find_nodes(table, gen, num_nodes, num, Hash.of(key), [], 0)}
+  defp do_find_nodes_in_table(_key, hash, table, overrides, gen, num_nodes, num) when map_size(overrides) == 0 do
+    {:ok, do_find_nodes(table, gen, num_nodes, num, hash, [], 0)}
   end
 
-  defp do_find_nodes_in_table(key, table, overrides, gen, num_nodes, num) do
+  defp do_find_nodes_in_table(key, hash, table, overrides, gen, num_nodes, num) do
     {found, found_length} =
       case overrides do
         %{^key => overrides} ->
@@ -494,24 +499,25 @@ defmodule ExHashRing.Ring do
           {[], 0}
       end
 
-    {:ok, do_find_nodes(table, gen, num_nodes, max(num - found_length, 0), Hash.of(key), found, found_length)}
+    {:ok, do_find_nodes(table, gen, num_nodes, max(num - found_length, 0), hash, found, found_length)}
   end
 
   @spec do_find_stable_nodes(
     key(),
+    hash :: Hash.t(),
     num :: non_neg_integer(),
     back :: non_neg_integer(),
     config :: Config.config()
   ) :: {:ok, [Node.name()]} | {:error, atom()}
-  def do_find_stable_nodes(key, num, back, config) do
+  def do_find_stable_nodes(key, hash, num, back, config) do
     Enum.reduce_while(0..back, {:ok, []}, fn
       back, {:ok, []} ->
-        with {:ok, nodes} <- do_find_historical_nodes(key, num, back, config) do
+        with {:ok, nodes} <- do_find_historical_nodes(key, hash, num, back, config) do
           {:cont, {:ok, nodes}}
         end
 
       back, {:ok, acc} ->
-        with {:ok, nodes} <- do_find_historical_nodes(key, num, back, config) do
+        with {:ok, nodes} <- do_find_historical_nodes(key, hash, num, back, config) do
           acc =
             nodes
             |> Enum.reverse()
