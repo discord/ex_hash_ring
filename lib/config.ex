@@ -11,7 +11,7 @@ defmodule ExHashRing.Config do
   after all changes have been applied successfully to the Ring in ETS is the configuration's generation updated to
   point at the new entries.
   """
-  @type generation :: pos_integer()
+  @type generation :: integer()
 
   @typedoc """
   Overrides allow the Ring to always resolve a given key to a list of nodes.

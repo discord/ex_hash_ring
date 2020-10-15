@@ -96,7 +96,7 @@ defmodule ExHashRing.Ring do
   @doc """
   Adds a node to the existing set of nodes in the ring.
   """
-  @spec add_node(name(), Node.name(), Node.replicas) :: {:ok, [Node.t()]} | {:error, :node_exists}
+  @spec add_node(name(), Node.name(), Node.replicas() | nil) :: {:ok, [Node.t()]} | {:error, :node_exists}
   def add_node(name, node_name, num_replicas \\ nil)
 
   def add_node(name, node_name, nil) do
