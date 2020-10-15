@@ -478,7 +478,7 @@ defmodule ExHashRing.Ring.Operations.Test do
     {:ok, _} = Ring.remove_node(name, "c")
     assert Ring.get_generation(name) == {:ok, 2}
 
-    assert Ring.force_gc(name) == {:ok, [0, 1]}
+    assert Ring.force_gc(name) == {:ok, [1]}
     assert Ring.force_gc(name) == {:ok, []}
 
     # Break the veil and look under the hood and make sure that we don't have any old things in it anymore.
@@ -675,7 +675,85 @@ defmodule ExHashRing.Ring.Operations.Test do
     end
   end
 
+  describe "garbage collection scheduling" do
+    test "schedules the correct generation when depth is 1" do
+      name = :"ExHashRing.Ring.Test.GC.Schedule.1"
+      {:ok, _} = Ring.start_link(name, depth: 1, named: true, nodes: ["a", "b", "c"])
 
+      assert {:ok, 1} = Ring.get_generation(name)
+      assert {:ok, []} = Ring.get_pending_gcs(name)
+
+      # Make a Generation
+      {:ok, _} = Ring.add_nodes(name, ["d", "e", "f"])
+
+      assert {:ok, 2} = Ring.get_generation(name)
+      assert {:ok, [1]} = Ring.get_pending_gcs(name)
+
+      # Make another Generation
+      {:ok, _} = Ring.add_nodes(name, ["g", "h", "i"])
+
+      assert {:ok, 3} = Ring.get_generation(name)
+      assert {:ok, [1, 2]} = Ring.get_pending_gcs(name)
+    end
+
+    test "schedules the correct generation when depth is 2" do
+      name = :"ExHashRing.Ring.Test.GC.Schedule.2"
+      {:ok, _} = Ring.start_link(name, depth: 2, named: true, nodes: ["a", "b", "c"])
+
+      assert {:ok, 1} = Ring.get_generation(name)
+      assert {:ok, []} = Ring.get_pending_gcs(name)
+
+      # Make a Generation, since depth is two nothing should be pending
+      {:ok, _} = Ring.add_nodes(name, ["d", "e", "f"])
+
+      assert {:ok, 2} = Ring.get_generation(name)
+      assert {:ok, []} = Ring.get_pending_gcs(name)
+
+      # Make another Generation
+      {:ok, _} = Ring.add_nodes(name, ["g", "h", "i"])
+
+      assert {:ok, 3} = Ring.get_generation(name)
+      assert {:ok, [1]} = Ring.get_pending_gcs(name)
+
+      # Make another Generation
+      {:ok, _} = Ring.remove_nodes(name, ["a", "d", "g"])
+
+      assert {:ok, 4} = Ring.get_generation(name)
+      assert {:ok, [1, 2]} = Ring.get_pending_gcs(name)
+    end
+
+    test "schedules the correct generation when depth is 3" do
+      name = :"ExHashRing.Ring.Test.GC.Schedule.3"
+      {:ok, _} = Ring.start_link(name, depth: 3, named: true, nodes: ["a", "b", "c"])
+
+      assert {:ok, 1} = Ring.get_generation(name)
+      assert {:ok, []} = Ring.get_pending_gcs(name)
+
+      # Make a Generation, since depth is three nothing should be pending
+      {:ok, _} = Ring.add_nodes(name, ["d", "e", "f"])
+
+      assert {:ok, 2} = Ring.get_generation(name)
+      assert {:ok, []} = Ring.get_pending_gcs(name)
+
+      # Make another Generation, since depth is three nothing should be pending
+      {:ok, _} = Ring.add_nodes(name, ["g", "h", "i"])
+
+      assert {:ok, 3} = Ring.get_generation(name)
+      assert {:ok, []} = Ring.get_pending_gcs(name)
+
+      # Make another Generation
+      {:ok, _} = Ring.remove_nodes(name, ["a", "d", "g"])
+
+      assert {:ok, 4} = Ring.get_generation(name)
+      assert {:ok, [1]} = Ring.get_pending_gcs(name)
+
+      # Make another Generation
+      {:ok, _} = Ring.remove_nodes(name, ["b", "e", "h"])
+
+      assert {:ok, 5} = Ring.get_generation(name)
+      assert {:ok, [1, 2]} = Ring.get_pending_gcs(name)
+    end
+  end
 
   defp count_generation_entries(name, generation) do
     {:ok, {table, _depth, _sizes, _genertion, _overrids}} = Config.get(name)

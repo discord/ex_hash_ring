@@ -235,6 +235,14 @@ defmodule ExHashRing.Ring do
   end
 
   @doc """
+  Retrieves a list of pending gc generations.
+  """
+  @spec get_pending_gcs(name()) :: {:ok, [Config.generation()]}
+  def get_pending_gcs(name) do
+    GenServer.call(name, :get_pending_gcs)
+  end
+
+  @doc """
   Stops the GenServer holding the Ring.
   """
   @spec stop(name :: atom()) :: :ok
@@ -276,9 +284,15 @@ defmodule ExHashRing.Ring do
   end
 
   @doc """
-  Schedulers a generation for garbage collection
+  Schedulers a generation for garbage collection.
+
+  Any generation less than or equal to the initial generation (generation 0) is ignored.
   """
   @spec schedule_gc(state :: t(), Config.generation()) :: t()
+  def schedule_gc(%__MODULE__{} = state, generation) when generation <= 0 do
+    state
+  end
+
   def schedule_gc(%__MODULE__{} = state, generation) do
     pending_gcs =
       Map.put_new_lazy(state.pending_gcs, generation, fn ->
@@ -317,11 +331,6 @@ defmodule ExHashRing.Ring do
     {:ok, state}
   end
 
-  def handle_call({:set_nodes, nodes}, _from, %__MODULE__{} = state) do
-    nodes = Node.normalize(nodes, state.replicas)
-    {:reply, {:ok, nodes}, update_nodes(state, nodes)}
-  end
-
   def handle_call({:add_nodes, nodes}, _from, %__MODULE__{} = state) do
     nodes = Node.normalize(nodes, state.replicas)
 
@@ -335,36 +344,6 @@ defmodule ExHashRing.Ring do
       nodes = nodes ++ state.nodes
       {:reply, {:ok, nodes}, update_nodes(state, nodes)}
     end
-  end
-
-  def handle_call({:remove_nodes, node_names}, _from, %__MODULE__{} = state) do
-    has_unknown_nodes? = Enum.any?(node_names, fn name ->
-      not has_node_with_name?(state.nodes, name)
-    end)
-
-    if has_unknown_nodes? do
-      {:reply, {:error, :node_not_exists}, state}
-    else
-      nodes = Enum.reject(state.nodes, fn {name, _} -> name in node_names end)
-      {:reply, {:ok, nodes}, update_nodes(state, nodes)}
-    end
-  end
-
-  def handle_call({:set_overrides, overrides}, _from, state) do
-    {:reply, {:ok, overrides}, update_overrides(state, overrides)}
-  end
-
-  def handle_call(:get_overrides, _from, %{overrides: overrides} = state) do
-    {:reply, {:ok, overrides}, state}
-  end
-
-  def handle_call(:get_nodes, _from, %{nodes: nodes} = state) do
-    nodes = for {node_name, _} <- nodes, do: node_name
-    {:reply, {:ok, nodes}, state}
-  end
-
-  def handle_call(:get_nodes_with_replicas, _from, %{nodes: nodes} = state) do
-    {:reply, {:ok, nodes}, state}
   end
 
   def handle_call(:force_gc, _from, %{pending_gcs: pending_gcs} = state)
@@ -396,6 +375,45 @@ defmodule ExHashRing.Ring do
       end
 
     {:reply, reply, %__MODULE__{state | pending_gcs: pending_gcs}}
+  end
+
+  def handle_call(:get_overrides, _from, %{overrides: overrides} = state) do
+    {:reply, {:ok, overrides}, state}
+  end
+
+  def handle_call(:get_nodes, _from, %{nodes: nodes} = state) do
+    nodes = for {node_name, _} <- nodes, do: node_name
+    {:reply, {:ok, nodes}, state}
+  end
+
+  def handle_call(:get_nodes_with_replicas, _from, %{nodes: nodes} = state) do
+    {:reply, {:ok, nodes}, state}
+  end
+
+  def handle_call(:get_pending_gcs, _from, %__MODULE__{} = state) do
+    {:reply, {:ok, Map.keys(state.pending_gcs)}, state}
+  end
+
+  def handle_call({:remove_nodes, node_names}, _from, %__MODULE__{} = state) do
+    has_unknown_nodes? = Enum.any?(node_names, fn name ->
+      not has_node_with_name?(state.nodes, name)
+    end)
+
+    if has_unknown_nodes? do
+      {:reply, {:error, :node_not_exists}, state}
+    else
+      nodes = Enum.reject(state.nodes, fn {name, _} -> name in node_names end)
+      {:reply, {:ok, nodes}, update_nodes(state, nodes)}
+    end
+  end
+
+  def handle_call({:set_nodes, nodes}, _from, %__MODULE__{} = state) do
+    nodes = Node.normalize(nodes, state.replicas)
+    {:reply, {:ok, nodes}, update_nodes(state, nodes)}
+  end
+
+  def handle_call({:set_overrides, overrides}, _from, state) do
+    {:reply, {:ok, overrides}, update_overrides(state, overrides)}
   end
 
   def handle_info({:gc, generation}, %__MODULE__{} = state) do
