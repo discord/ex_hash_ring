@@ -76,14 +76,14 @@ defmodule ExHashRing.Node do
   ## Private
 
   @spec do_expand(node :: t, acc :: [virtual()]) :: [virtual()]
-  def do_expand({name, replicas}, acc) do
+  defp do_expand({name, replicas}, acc) do
     Enum.reduce(0..(replicas - 1), acc, fn replica, acc ->
       [{Hash.of("#{name}#{replica}"), name} | acc]
     end)
   end
 
   @spec do_sort([virtual()]) :: [virtual()]
-  def do_sort(virtual_nodes) do
+  defp do_sort(virtual_nodes) do
     Enum.sort(virtual_nodes, &(elem(&1, 0) < elem(&2, 0)))
   end
 end
