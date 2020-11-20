@@ -647,7 +647,7 @@ defmodule ExHashRing.Ring.Operations.Test do
     end
 
     test "order is newest generation to oldest generation preserving the order of those generations" do
-      name = ExHashRing.Ring.Test.Stable
+      name = ExHashRing.Ring.Test.Stable.Ordered
 
       first_generation_nodes = Enum.map(1..100, &"node-#{&1}")
       second_generation_nodes = Enum.map(101..200, &"node-#{&1}")
@@ -669,9 +669,131 @@ defmodule ExHashRing.Ring.Operations.Test do
 
       expected = Enum.uniq(third_nodes ++ second_nodes ++ first_nodes)
 
-      {:ok, stable_nodes} = Ring.find_stable_nodes(name, 1, 3, 3)
+      {:ok, stable_nodes} = Ring.find_stable_nodes(name, 1, 3)
 
       assert expected == stable_nodes
+    end
+
+    test "excludes generations older than depth" do
+      name = ExHashRing.Ring.Test.Stable.Exclude
+
+      target = "test"
+
+      first_generation_nodes = Enum.map(1..100, &"node-#{&1}")
+      second_generation_nodes = Enum.map(101..200, &"node-#{&1}")
+      third_generation_nodes = Enum.map(201..300, &"node-#{&1}")
+
+      {:ok, _pid} = Ring.start_link(name, depth: 2, nodes: first_generation_nodes, named: true)
+
+      {:ok, first_nodes} = Ring.find_nodes(name, target, 3)
+
+      # Create the second generation
+      {:ok, _} = Ring.add_nodes(name, second_generation_nodes)
+
+      {:ok, second_nodes} = Ring.find_nodes(name, target, 3)
+
+      # There should be some difference between the first generation and the second generation
+      refute Enum.empty?(first_nodes -- second_nodes)
+
+      # Create the third generation
+      {:ok, _} = Ring.add_nodes(name, third_generation_nodes)
+
+      {:ok, third_nodes} = Ring.find_nodes(name, target, 3)
+
+      # There should be some difference between the second generation and third generation
+      refute Enum.empty?(second_nodes -- third_nodes)
+
+      expected = Enum.uniq(third_nodes ++ second_nodes)
+
+      {:ok, stable_nodes} = Ring.find_stable_nodes(name, target, 3)
+
+      assert expected == stable_nodes
+    end
+
+
+    test "all empty generations results in invalid_ring error" do
+      name = ExHashRing.Ring.Test.Stable.AllMissing
+
+      # Start with an empty generation
+      {:ok, _} = Ring.start_link(name, depth: 2, named: true)
+
+      # Empty generations are considered invalid for standard lookup
+      {:error, :invalid_ring} = Ring.find_nodes(name, 1, 3)
+
+      # Create an empty second generation
+      {:ok, _} = Ring.set_nodes(name, [])
+
+      assert {:error, :invalid_ring} = Ring.find_stable_nodes(name, 1, 3)
+    end
+
+    test "mixed empty and populated generations ignore the empty generations" do
+      name = ExHashRing.Ring.Test.Stable.Mixed
+
+      # Start with an empty generation
+      {:ok, _} = Ring.start_link(name, depth: 2, named: true)
+
+      # Empty generations are considered invalid for standard lookup
+      {:error, :invalid_ring} = Ring.find_nodes(name, 1, 3)
+
+      # Create a non-empty second generation
+      {:ok, _} = Ring.add_nodes(name, @nodes)
+
+      # Perform a standard lookup
+      {:ok, expected_nodes} = Ring.find_nodes(name, 1, 3)
+
+      # Perform a stable lookup
+      {:ok, actual_nodes} = Ring.find_stable_nodes(name, 1, 3)
+
+      assert expected_nodes == actual_nodes
+    end
+
+    test "partial history of all empty generation results in invalid_ring error" do
+      name = ExHashRing.Ring.Test.Stable.PartialEmpty
+
+      # Start with an empty generation
+      {:ok, _} = Ring.start_link(name, depth: 2, named: true)
+
+      # Empty generations are considered invalid for standard lookup
+      {:error, :invalid_ring} = Ring.find_nodes(name, 1, 3)
+
+      # Depth is 2 and we only have 1 generation that's empty, perform a stable lookup
+      assert {:error, :invalid_ring} = Ring.find_stable_nodes(name, 1, 3)
+    end
+
+    test "partial history of populated generation returns nodes" do
+      name = ExHashRing.Ring.Test.Stable.PartialPopulated
+
+      # Start with a populated generation
+      {:ok, _} = Ring.start_link(name, depth: 2, named: true, nodes: @nodes)
+
+      # Perform a standard lookup
+      {:ok, expected_nodes} = Ring.find_nodes(name, 1, 3)
+
+      # Depth is 2 and we only have 1 generation that's populated, perform a stable lookup
+      {:ok, actual_nodes} = Ring.find_stable_nodes(name, 1, 3)
+
+      assert expected_nodes == actual_nodes
+    end
+
+    test "partial history of mixed generations returns nodes" do
+      name = ExHashRing.Ring.Test.Stable.PartialMixed
+
+      # Start with an populated generation
+      {:ok, _} = Ring.start_link(name, depth: 3, named: true, nodes: @nodes)
+
+      # Perform a standard lookup, this one will return nodes from the ones that were seeded
+      {:ok, expected_nodes} = Ring.find_nodes(name, 1, 3)
+
+      # Add an empty generation
+      {:ok, _} = Ring.set_nodes(name, [])
+
+      # Perform another standard lookup, this one will fail because the generation is empty
+      {:error, :invalid_ring} = Ring.find_nodes(name, 1, 3)
+
+      # Depth is 3 and we only have 2 generations, one that's populated and one that's empty.
+      {:ok, actual_nodes} = Ring.find_stable_nodes(name, 1, 3)
+
+      assert expected_nodes == actual_nodes
     end
   end
 

@@ -444,7 +444,7 @@ defmodule ExHashRing.Ring do
 
     case Enum.at(sizes, back) do
       nil ->
-        {:ok, []}
+        {:error, :invalid_ring}
 
       size ->
         do_find_nodes_in_table(key, hash, table, overrides, generation - back, size, num)
@@ -528,28 +528,28 @@ defmodule ExHashRing.Ring do
     config :: Config.config()
   ) :: {:ok, [Node.name()]} | {:error, atom()}
   def do_find_stable_nodes(key, hash, num, back, config) do
-    Enum.reduce_while(0..back, {:ok, []}, fn
-      back, {:ok, []} ->
-        with {:ok, nodes} <- do_find_historical_nodes(key, hash, num, back, config) do
-          {:cont, {:ok, nodes}}
-        end
+    Enum.reduce(0..(back - 1), {:error, :invalid_ring}, fn
+      back, {:error, :invalid_ring} ->
+        do_find_historical_nodes(key, hash, num, back, config)
 
       back, {:ok, acc} ->
-        with {:ok, nodes} <- do_find_historical_nodes(key, hash, num, back, config) do
-          acc =
-            nodes
-            |> Enum.reverse()
-            |> Enum.reduce(acc, fn node, acc ->
-              if node in acc do
-                acc
-              else
-                [node | acc]
-              end
-            end)
-          {:cont, {:ok, acc}}
-        else
-          error ->
-            {:halt, error}
+        case do_find_historical_nodes(key, hash, num, back, config) do
+          {:ok, nodes} ->
+            acc =
+              nodes
+              |> Enum.reverse()
+              |> Enum.reduce(acc, fn node, acc ->
+                if node in acc do
+                  acc
+                else
+                  [node | acc]
+                end
+              end)
+
+            {:ok, acc}
+
+          _ ->
+            {:ok, acc}
         end
     end)
   end
