@@ -25,6 +25,7 @@ defmodule ExHashRing.HashRing.Mixfile do
   def deps do
     [
       {:benchfella, "~> 0.3.0", only: :dev},
+      {:dialyxir, "~> 1.0", only: :dev, runtime: false},
       {:ex_doc, "~> 0.22.0", only: :dev, runtime: false}
     ]
   end

@@ -503,22 +503,22 @@ defmodule ExHashRing.Ring do
     table :: :ets.tid(),
     overrides :: Config.override_map(),
     gen :: Config.generation(),
-    num_nodes :: Config.num_nodes(),
+    size(),
     num :: non_neg_integer()
   ) :: {:ok, [binary]} | {:error, term}
   defp do_find_nodes_in_table(_key, _hash, _table, _overrides, _gen, 0, _num) do
     {:error, :invalid_ring}
   end
 
-  defp do_find_nodes_in_table(_key, _hash, _table, _overrides, _gen, _num_nodes, 0) do
+  defp do_find_nodes_in_table(_key, _hash, _table, _overrides, _gen, _size, 0) do
     {:ok, []}
   end
 
-  defp do_find_nodes_in_table(_key, hash, table, overrides, gen, num_nodes, num) when map_size(overrides) == 0 do
-    {:ok, do_find_nodes(table, gen, num_nodes, num, hash, [], 0)}
+  defp do_find_nodes_in_table(_key, hash, table, overrides, gen, size, num) when map_size(overrides) == 0 do
+    {:ok, do_find_nodes(table, gen, size, num, hash, [], 0)}
   end
 
-  defp do_find_nodes_in_table(key, hash, table, overrides, gen, num_nodes, num) do
+  defp do_find_nodes_in_table(key, hash, table, overrides, gen, size, num) do
     {found, found_length} =
       case overrides do
         %{^key => overrides} ->
@@ -528,7 +528,7 @@ defmodule ExHashRing.Ring do
           {[], 0}
       end
 
-    {:ok, do_find_nodes(table, gen, num_nodes, max(num - found_length, 0), hash, found, found_length)}
+    {:ok, do_find_nodes(table, gen, size, max(num - found_length, 0), hash, found, found_length)}
   end
 
   @spec do_find_stable_nodes(

@@ -6,9 +6,9 @@ defmodule ExHashRing.Hash do
   """
 
   @typedoc """
-  Any term that can be coerced into a string (String.Char.t()) is a hashable term.
+  Any term that can be coerced into a string (String.Chars.t()) is a hashable term.
   """
-  @type hashable :: String.Char.t()
+  @type hashable :: String.Chars.t()
 
   @typedoc """
   Hash for the term, this is used to locate Nodes in the Ring
