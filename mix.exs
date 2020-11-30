@@ -4,13 +4,14 @@ defmodule ExHashRing.HashRing.Mixfile do
   def project do
     [
       app: :ex_hash_ring,
-      version: "5.0.0",
+      version: "6.0.0",
       elixir: "~> 1.3",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
-      package: package()
+      package: package(),
+      docs: docs()
     ]
   end
 
@@ -23,16 +24,19 @@ defmodule ExHashRing.HashRing.Mixfile do
 
   def deps do
     [
-      {:benchfella, "~> 0.3.0", only: :dev}
+      {:benchfella, "~> 0.3.0", only: :dev},
+      {:ex_doc, "~> 0.22.0", only: :dev, runtime: false}
     ]
   end
 
-  defp elixirc_paths(:test) do
-    elixirc_paths(:dev) ++ ["test/support"]
+  def docs do
+    [
+      name: "ExHashRing",
+      extras: ["README.md", "pages/upgrade.md"],
+      main: "readme",
+      source_url: "https://github.com/discordapp/ex_hash_ring"
+    ]
   end
-
-  defp elixirc_paths(_),
-    do: ["lib"]
 
   def package do
     [
@@ -40,10 +44,21 @@ defmodule ExHashRing.HashRing.Mixfile do
       description: "A fast consistent hash ring implementation in Elixir.",
       maintainers: [],
       licenses: ["MIT"],
-      files: ["lib/*", "mix.exs", "README*", "LICENSE*"],
+      files: ["lib/*", "pages/*", "mix.exs", "README*", "LICENSE*"],
       links: %{
         "GitHub" => "https://github.com/discordapp/ex_hash_ring"
       }
     ]
   end
+
+  ## Private
+
+  defp elixirc_paths(:test) do
+    elixirc_paths(:dev) ++ ["test/support"]
+  end
+
+  defp elixirc_paths(_) do
+    ["lib"]
+  end
+
 end

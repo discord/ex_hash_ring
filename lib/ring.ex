@@ -1,4 +1,10 @@
 defmodule ExHashRing.Ring do
+  @moduledoc """
+  A pure Elixir consistent hash ring.
+
+  Ring data is stored in an ETS table owned by the ExHashRing.Ring GenServer.  This module
+  provides functions for managing and querying a consistent hash ring quickly and efficiently.
+  """
   use GenServer
 
   alias ExHashRing.{Config, Hash, Node, Settings, Utils}
@@ -65,10 +71,12 @@ defmodule ExHashRing.Ring do
 
   Ring supports various options as outlined below.
   - :depth - Number of generations to retain for lookup. Defaults to #{Settings.get_depth()}
-  - :named - Boolean that controls whether or not to register the process as a named process.  Defaults to false
+  - :named - Boolean that controls whether or not to register the process as a named process.
+             Defaults to false
   - :nodes - Initial nodes for the Ring.  Defaults to []
   - :overrides - Initial overrides for the Ring. Defaults to %{}
-  - :replicas - Replicas to use for nodes that do not define replicas. Defaults to #{Settings.get_replicas}
+  - :replicas - Replicas to use for nodes that do not define replicas. Defaults to
+                #{Settings.get_replicas}
   """
   @spec start_link(name(), options :: Keyword.t()) :: GenServer.on_start()
   def start_link(name, options \\ []) do
@@ -126,7 +134,8 @@ defmodule ExHashRing.Ring do
   end
 
   @doc """
-  Finds the specified number of nodes responsible for the given key in the specified ring's current generation.
+  Finds the specified number of nodes responsible for the given key in the specified ring's
+  current generation.
   """
   @spec find_nodes(name(), key(), non_neg_integer()) :: {:ok, [Node.name()]} | {:error, atom}
   def find_nodes(name, key, num) do
@@ -141,8 +150,8 @@ defmodule ExHashRing.Ring do
   end
 
   @doc """
-  Finds the specified number of nodes responsible for the given key in the specified ring's history, going back `back`
-  number of generations.
+  Finds the specified number of nodes responsible for the given key in the specified ring's
+  history, going back `back` number of generations.
   """
   @spec find_historical_nodes(name(), key(), num :: non_neg_integer(), back :: non_neg_integer()) :: {:ok, [Node.name()]} | {:error, atom}
   def find_historical_nodes(name, key, num, back) do
@@ -154,8 +163,8 @@ defmodule ExHashRing.Ring do
   end
 
   @doc """
-  Finds the specificed number of nodes responsible for the given key by looking at each generation in the ring's
-  configured depth.  See `find_stable_nodes/4` for more information.
+  Finds the specificed number of nodes responsible for the given key by looking at each generation
+  in the ring's configured depth.  See `find_stable_nodes/4` for more information.
   """
   @spec find_stable_nodes(name(), key(), num :: non_neg_integer()) :: {:ok, [Node.name()]} | {:error, atom}
   def find_stable_nodes(name, key, num) do
@@ -167,9 +176,10 @@ defmodule ExHashRing.Ring do
   end
 
   @doc """
-  Finds the specified number of nodes responsible for the given key in the specified ring's current generation and in
-  the history of the ring.  This means that this function returns up to `back` * `num`; where `num` = number of nodes
-  requested, and `back` = the number of generations to consider
+  Finds the specified number of nodes responsible for the given key in the specified ring's
+  current generation and in the history of the ring.  This means that this function returns up to
+  `back` * `num`; where `num` = number of nodes requested, and `back` = the number of generations
+  to consider.
   """
   @spec find_stable_nodes(name(), key(), num :: non_neg_integer(), back :: pos_integer()) :: {:ok, [Node.name()]} | {:error, atom}
   def find_stable_nodes(name, key, num, back) do
@@ -181,8 +191,8 @@ defmodule ExHashRing.Ring do
   end
 
   @doc """
-  Forces a garbage collection of any generations that are pending garbage collection. Returns the generations that were
-  collected.
+  Forces a garbage collection of any generations that are pending garbage collection. Returns the
+  generations that were collected.
   """
   @spec force_gc(name()) :: {:ok, [Config.generation()]}
   def force_gc(name) do
@@ -190,8 +200,8 @@ defmodule ExHashRing.Ring do
   end
 
   @doc """
-  Forces a garbage collection of a specific generation, the generation must be pending or else {:error, :not_pending}
-  is returned.
+  Forces a garbage collection of a specific generation, the generation must be pending or else
+  `{:error, :not_pending}` is returned.
   """
   @spec force_gc(name(), Config.generation()) :: :ok | {:error, :not_pending}
   def force_gc(name, generation) do
@@ -466,7 +476,8 @@ defmodule ExHashRing.Ring do
   end
 
   defp do_find_nodes(_table, _generation, size, _remaining, _hash, found, size) do
-    # Number of found nodes and number of nodes in the ring are equal, further processing will yield no additional results
+    # Number of found nodes and number of nodes in the ring are equal, further processing will
+    # yield no additional results
     found
   end
 

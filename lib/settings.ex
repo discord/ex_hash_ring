@@ -1,4 +1,9 @@
 defmodule ExHashRing.Settings do
+  @moduledoc """
+  Settings provides programmatic access into the various settings that can be configured for
+  ExHashRing.
+  """
+
   @default_depth 1
   @default_gc_delay 10_000
   @default_replicas 512
@@ -6,7 +11,8 @@ defmodule ExHashRing.Settings do
   alias ExHashRing.{Node, Ring}
 
   @doc """
-  Clears any custom configuration for depth, this will cause it to revert to the default, #{@default_depth}
+  Clears any custom configuration for depth, this will cause it to revert to the default,
+  #{@default_depth}
   """
   @spec clear_depth() :: :ok
   def clear_depth do
@@ -14,7 +20,8 @@ defmodule ExHashRing.Settings do
   end
 
   @doc """
-  Clears any custom configuration for gc_delay, this will cause it to revert to the default, #{@default_gc_delay}
+  Clears any custom configuration for gc_delay, this will cause it to revert to the default,
+  #{@default_gc_delay}
   """
   @spec clear_gc_delay() :: :ok
   def clear_gc_delay do
@@ -22,7 +29,8 @@ defmodule ExHashRing.Settings do
   end
 
   @doc """
-  Clears any custom configuration for replicas, this will cause it to rever to the default, #{@default_replicas}
+  Clears any custom configuration for replicas, this will cause it to rever to the default,
+  #{@default_replicas}
   """
   @spec clear_replicas() :: :ok
   def clear_replicas do

@@ -1,27 +1,34 @@
 defmodule ExHashRing.Config do
+  @moduledoc """
+  Provides an interface for querying configuration information about Rings.
+
+  Each Ring has some associated configuration information that is available at all times to aid in
+  performing client-context queries into the underlying ETS table
+  """
+
   use GenServer
 
-  alias ExHashRing.{Hash, Node, Ring}
+  alias ExHashRing.{Node, Ring}
 
   @type t :: %__MODULE__{}
 
   @typedoc """
-  Generations are used so that changes to the ring can be applied atomically.  Mutating the Ring in ETS requires
-  multiple independent operations, all entries in the ring are identified by a configurtion generation and the only
-  after all changes have been applied successfully to the Ring in ETS is the configuration's generation updated to
-  point at the new entries.
+  Generations are used so that changes to the ring can be applied atomically.  Mutating the Ring
+  in ETS requires multiple independent operations, all entries in the ring are identified by a
+  configurtion generation and then only after all changes have been applied successfully to the
+  Ring in ETS is the configuration's generation updated to point at the new entries.
   """
   @type generation :: integer()
 
   @typedoc """
   Overrides allow the Ring to always resolve a given key to a list of nodes.
   """
-  @type override_map :: %{Hash.key() => [Node.name()]}
+  @type override_map :: %{Ring.key() => [Node.name()]}
 
   @typedoc """
-  For any ring name a configuration can be looked up that will provide information about the table holding the ring
-  data, the configured history depth, sizes for each generation in the history, the current generation, and any
-  overrides that should be applied during lookup.
+  For any ring name a configuration can be looked up that will provide information about the table
+  holding the ring data, the configured history depth, sizes for each generation in the history,
+  the current generation, and any overrides that should be applied during lookup.
   """
   @type config :: {
     table :: :ets.tid(),

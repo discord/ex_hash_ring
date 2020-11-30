@@ -1,4 +1,8 @@
 defmodule ExHashRing.Utils do
+  @moduledoc """
+  Utility functions used throughout ExHashRing
+  """
+
   @compile :native
   @compile {:inline, do_take_max: 3, take_max: 2}
 

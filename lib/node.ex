@@ -21,8 +21,9 @@ defmodule ExHashRing.Node do
   @type t :: {name(), replicas()}
 
   @typedoc """
-  Nodes can be defined by either using a bare name or using a fully specified node.  When using a bare name the
-  definition will have to be converted into a fully specified node, see `normalize/2`.
+  Nodes can be defined by either using a bare name or using a fully specified node.  When using a
+  bare name the definition will have to be converted into a fully specified node, see
+  `normalize/2`.
   """
   @type definition :: name() | t()
 
