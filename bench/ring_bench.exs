@@ -1,6 +1,6 @@
 defmodule ExHashRing.Ring.Benchmark do
   use Benchfella
-  alias ExHashRing.{Config, Ring}
+  alias ExHashRing.{Information, Ring}
 
   @name ExHashRing.Ring.Benchmark.Ring
   @nodes ["hash-ring-1-1", "hash-ring-1-2", "hash-ring-1-3", "hash-ring-1-4"]
@@ -8,7 +8,7 @@ defmodule ExHashRing.Ring.Benchmark do
   @overrides %{"1234254543" => [1]}
 
   setup_all do
-    Config.start_link()
+    Information.start_link()
     {:ok, nil}
   end
 

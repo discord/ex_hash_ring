@@ -55,7 +55,7 @@ defmodule ExHashRing.Ring.Overrides.Test do
   @multi_overrides @harness_multi_overrides
                    |> Enum.map(&{&1, ["#{&1} (override-1)", "#{&1} (override-2)"]})
 
-  @override_map Map.new([@single_overrides ++ @multi_overrides] |> List.flatten())
+  @overrides Map.new([@single_overrides ++ @multi_overrides] |> List.flatten())
 
   setup_all do
     rings =
@@ -69,7 +69,7 @@ defmodule ExHashRing.Ring.Overrides.Test do
             replicas: replicas
           )
 
-        Ring.set_overrides(name, @override_map)
+        Ring.set_overrides(name, @overrides)
 
         {replicas, name}
       end
@@ -85,7 +85,7 @@ defmodule ExHashRing.Ring.Overrides.Test do
 
           expected =
             Map.get(
-              @override_map,
+              @overrides,
               unquote(key),
               [Harness.find_node(unquote(replicas), unquote(key))]
             )
@@ -96,7 +96,7 @@ defmodule ExHashRing.Ring.Overrides.Test do
         test "find_nodes/3(key=#{key} num=#{Harness.num()})", %{rings: rings} do
           found = Ring.find_nodes(rings[unquote(replicas)], unquote(key), Harness.num())
           harness = Harness.find_nodes(unquote(replicas), unquote(key), Harness.num())
-          overrides = [Map.get(@override_map, unquote(key))]
+          overrides = [Map.get(@overrides, unquote(key))]
 
           expected =
             (overrides ++ harness)
@@ -114,7 +114,7 @@ end
 defmodule ExHashRing.Ring.Operations.Test do
   use ExUnit.Case
 
-  alias ExHashRing.{Config, Ring, Settings}
+  alias ExHashRing.{Information, Ring, Settings}
 
   @nodes ["a", "b", "c"]
 
@@ -456,10 +456,10 @@ defmodule ExHashRing.Ring.Operations.Test do
     assert map_size(overrides) == 0
   end
 
-  test "ets config will remove config", %{name: name} do
-    refute Config.get(name) == {:error, :no_ring}
+  test "ets information will remove entry", %{name: name} do
+    refute Information.get(name) == {:error, :no_ring}
     assert Ring.stop(name) == :ok
-    assert await(fn -> Config.get(name) == {:error, :no_ring} end)
+    assert await(fn -> Information.get(name) == {:error, :no_ring} end)
   end
 
   test "ring gen gc happens", %{name: name} do
@@ -878,7 +878,7 @@ defmodule ExHashRing.Ring.Operations.Test do
   end
 
   defp count_generation_entries(name, generation) do
-    {:ok, {table, _depth, _sizes, _genertion, _overrids}} = Config.get(name)
+    {:ok, {table, _depth, _sizes, _genertion, _overrids}} = Information.get(name)
 
     table
     |> :ets.tab2list()
@@ -893,7 +893,7 @@ defmodule ExHashRing.Ring.Operations.Test do
   end
 
   defp ring_ets_table_size(name) do
-    {:ok, {table, _depth, _sizes, _generation, _overrides}} = Config.get(name)
+    {:ok, {table, _depth, _sizes, _generation, _overrides}} = Information.get(name)
     :ets.info(table, :size)
   end
 

@@ -102,7 +102,7 @@ The entries in the table are always structured as follows.
     depth :: Ring.depth() :: pos_integer(),
     sizes :: [Ring.size()] :: [non_neg_integer()],
     generation :: integer(),
-    override_map :: %{Ring.key() :: Hash.hashable() :: String.Chars.t() => [Node.name() :: binary()]}
+    overrides :: %{Ring.key() :: Hash.hashable() :: String.Chars.t() => [Node.name() :: binary()]}
 }
 ```
 

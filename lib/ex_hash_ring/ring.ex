@@ -7,7 +7,7 @@ defmodule ExHashRing.Ring do
   """
   use GenServer
 
-  alias ExHashRing.{Config, Hash, Node, Settings, Utils}
+  alias ExHashRing.{Hash, Information, Node, Settings, Utils}
 
   @compile {:inline,
             do_find_historical_nodes: 5,
@@ -33,9 +33,20 @@ defmodule ExHashRing.Ring do
   @type depth :: pos_integer()
 
   @typedoc """
+  Generations act as a grouping mechanism to associate many records together as one logical and
+  atomic group.
+  """
+  @type generation :: integer()
+
+  @typedoc """
   Rings are named with a unique atom.
   """
   @type name :: atom()
+
+  @typedoc """
+  Overrides allow the Ring to always resolve a given key to a set list of nodes.
+  """
+  @type overrides :: %{key() => [Node.name()]}
 
   @typedoc """
   Ring size is a memoized count of the number of logical nodes in a ring
@@ -45,11 +56,11 @@ defmodule ExHashRing.Ring do
 
   @type t :: %__MODULE__{
     depth: depth(),
-    generation: Config.generation(),
+    generation: generation(),
     name: name(),
     nodes: [Node.t()],
-    overrides: Config.override_map(),
-    pending_gcs: %{Config.generation() => reference()},
+    overrides: overrides(),
+    pending_gcs: %{generation() => reference()},
     replicas: Node.replicas(),
     sizes: [size()],
     table: :ets.tid()
@@ -155,9 +166,9 @@ defmodule ExHashRing.Ring do
   """
   @spec find_historical_nodes(name(), key(), num :: non_neg_integer(), back :: non_neg_integer()) :: {:ok, [Node.name()]} | {:error, atom}
   def find_historical_nodes(name, key, num, back) do
-    with {:ok, config} <- Config.get(name),
+    with {:ok, info} <- Information.get(name),
          hash = Hash.of(key),
-         {:ok, nodes} <- do_find_historical_nodes(key, hash, num, back, config) do
+         {:ok, nodes} <- do_find_historical_nodes(key, hash, num, back, info) do
       {:ok, Enum.reverse(nodes)}
     end
   end
@@ -168,9 +179,9 @@ defmodule ExHashRing.Ring do
   """
   @spec find_stable_nodes(name(), key(), num :: non_neg_integer()) :: {:ok, [Node.name()]} | {:error, atom}
   def find_stable_nodes(name, key, num) do
-    with {:ok, {_table, depth, _sizes, _generation, _overrides} = config} <- Config.get(name),
+    with {:ok, {_table, depth, _sizes, _generation, _overrides} = info} <- Information.get(name),
          hash = Hash.of(key),
-         {:ok, nodes} <- do_find_stable_nodes(key, hash, num, depth, config) do
+         {:ok, nodes} <- do_find_stable_nodes(key, hash, num, depth, info) do
       {:ok, Enum.reverse(nodes)}
     end
   end
@@ -183,9 +194,9 @@ defmodule ExHashRing.Ring do
   """
   @spec find_stable_nodes(name(), key(), num :: non_neg_integer(), back :: pos_integer()) :: {:ok, [Node.name()]} | {:error, atom}
   def find_stable_nodes(name, key, num, back) do
-    with {:ok, config} <- Config.get(name),
+    with {:ok, info} <- Information.get(name),
          hash = Hash.of(key),
-         {:ok, nodes} <- do_find_stable_nodes(key, hash, num, back, config) do
+         {:ok, nodes} <- do_find_stable_nodes(key, hash, num, back, info) do
       {:ok, Enum.reverse(nodes)}
     end
   end
@@ -194,7 +205,7 @@ defmodule ExHashRing.Ring do
   Forces a garbage collection of any generations that are pending garbage collection. Returns the
   generations that were collected.
   """
-  @spec force_gc(name()) :: {:ok, [Config.generation()]}
+  @spec force_gc(name()) :: {:ok, [generation()]}
   def force_gc(name) do
     GenServer.call(name, :force_gc)
   end
@@ -203,7 +214,7 @@ defmodule ExHashRing.Ring do
   Forces a garbage collection of a specific generation, the generation must be pending or else
   `{:error, :not_pending}` is returned.
   """
-  @spec force_gc(name(), Config.generation()) :: :ok | {:error, :not_pending}
+  @spec force_gc(name(), generation()) :: :ok | {:error, :not_pending}
   def force_gc(name, generation) do
     GenServer.call(name, {:force_gc, generation})
   end
@@ -213,9 +224,9 @@ defmodule ExHashRing.Ring do
   @doc """
   Get the current ring generation
   """
-  @spec get_generation(name()) :: {:ok, Config.generation()} | :error
+  @spec get_generation(name()) :: {:ok, generation()} | :error
   def get_generation(name) do
-    with {:ok, {_table, _depth, _sizes, generation, _overrides}} <- Config.get(name) do
+    with {:ok, {_table, _depth, _sizes, generation, _overrides}} <- Information.get(name) do
       {:ok, generation}
     end
   end
@@ -239,7 +250,7 @@ defmodule ExHashRing.Ring do
   @doc """
   Retrieves the current set of overrides from the ring.
   """
-  @spec get_overrides(name()) :: {:ok, Config.override_map()}
+  @spec get_overrides(name()) :: {:ok, overrides()}
   def get_overrides(name) do
     GenServer.call(name, :get_overrides)
   end
@@ -247,7 +258,7 @@ defmodule ExHashRing.Ring do
   @doc """
   Retrieves a list of pending gc generations.
   """
-  @spec get_pending_gcs(name()) :: {:ok, [Config.generation()]}
+  @spec get_pending_gcs(name()) :: {:ok, [generation()]}
   def get_pending_gcs(name) do
     GenServer.call(name, :get_pending_gcs)
   end
@@ -286,9 +297,9 @@ defmodule ExHashRing.Ring do
   end
 
   @doc """
-  Replaces the overrides in the ring with a new override map.
+  Replaces the overrides in the ring with new overrides.
   """
-  @spec set_overrides(name(), Config.override_map()) :: {:ok, Config.override_map()}
+  @spec set_overrides(name(), overrides()) :: {:ok, overrides()}
   def set_overrides(name, overrides) do
     GenServer.call(name, {:set_overrides, overrides})
   end
@@ -298,7 +309,7 @@ defmodule ExHashRing.Ring do
 
   Any generation less than or equal to the initial generation (generation 0) is ignored.
   """
-  @spec schedule_gc(state :: t(), Config.generation()) :: t()
+  @spec schedule_gc(state :: t(), generation()) :: t()
   def schedule_gc(%__MODULE__{} = state, generation) when generation <= 0 do
     state
   end
@@ -315,7 +326,7 @@ defmodule ExHashRing.Ring do
 
   ## Server
 
-  @spec init({name :: name(), options :: Keyword.t()}) :: {:ok, t()}
+  @spec init({name(), options :: Keyword.t()}) :: {:ok, t()}
   def init({name, options}) do
     table =
       :ets.new(:ring, [
@@ -447,10 +458,10 @@ defmodule ExHashRing.Ring do
     hash :: Hash.t(),
     num :: non_neg_integer(),
     back :: non_neg_integer(),
-    config :: Config.config()
+    info :: Information.entry()
   ) :: {:ok, [Node.name()]} | {:error, atom()}
-  defp do_find_historical_nodes(key, hash, num, back, config) do
-    {table, _depth, sizes, generation, overrides} = config
+  defp do_find_historical_nodes(key, hash, num, back, info) do
+    {table, _depth, sizes, generation, overrides} = info
 
     case Enum.at(sizes, back) do
       nil ->
@@ -463,8 +474,8 @@ defmodule ExHashRing.Ring do
 
   @spec do_find_nodes(
     table :: :ets.tid(),
-    generation :: Config.generation(),
-    size :: size(),
+    generation(),
+    size(),
     remaining :: non_neg_integer(),
     hash :: Hash.t(),
     found :: [Node.name()],
@@ -498,27 +509,27 @@ defmodule ExHashRing.Ring do
   end
 
   @spec do_find_nodes_in_table(
-    key :: key(),
+    key(),
     hash :: Hash.t(),
     table :: :ets.tid(),
-    overrides :: Config.override_map(),
-    gen :: Config.generation(),
+    overrides(),
+    generation(),
     size(),
     num :: non_neg_integer()
   ) :: {:ok, [binary]} | {:error, term}
-  defp do_find_nodes_in_table(_key, _hash, _table, _overrides, _gen, 0, _num) do
+  defp do_find_nodes_in_table(_key, _hash, _table, _overrides, _generation, 0, _num) do
     {:error, :invalid_ring}
   end
 
-  defp do_find_nodes_in_table(_key, _hash, _table, _overrides, _gen, _size, 0) do
+  defp do_find_nodes_in_table(_key, _hash, _table, _overrides, _generation, _size, 0) do
     {:ok, []}
   end
 
-  defp do_find_nodes_in_table(_key, hash, table, overrides, gen, size, num) when map_size(overrides) == 0 do
-    {:ok, do_find_nodes(table, gen, size, num, hash, [], 0)}
+  defp do_find_nodes_in_table(_key, hash, table, overrides, generation, size, num) when map_size(overrides) == 0 do
+    {:ok, do_find_nodes(table, generation, size, num, hash, [], 0)}
   end
 
-  defp do_find_nodes_in_table(key, hash, table, overrides, gen, size, num) do
+  defp do_find_nodes_in_table(key, hash, table, overrides, generation, size, num) do
     {found, found_length} =
       case overrides do
         %{^key => overrides} ->
@@ -528,7 +539,7 @@ defmodule ExHashRing.Ring do
           {[], 0}
       end
 
-    {:ok, do_find_nodes(table, gen, size, max(num - found_length, 0), hash, found, found_length)}
+    {:ok, do_find_nodes(table, generation, size, max(num - found_length, 0), hash, found, found_length)}
   end
 
   @spec do_find_stable_nodes(
@@ -536,15 +547,15 @@ defmodule ExHashRing.Ring do
     hash :: Hash.t(),
     num :: non_neg_integer(),
     back :: non_neg_integer(),
-    config :: Config.config()
+    info :: Information.entry()
   ) :: {:ok, [Node.name()]} | {:error, atom()}
-  def do_find_stable_nodes(key, hash, num, back, config) do
+  def do_find_stable_nodes(key, hash, num, back, info) do
     Enum.reduce(0..(back - 1), {:error, :invalid_ring}, fn
       back, {:error, :invalid_ring} ->
-        do_find_historical_nodes(key, hash, num, back, config)
+        do_find_historical_nodes(key, hash, num, back, info)
 
       back, {:ok, acc} ->
-        case do_find_historical_nodes(key, hash, num, back, config) do
+        case do_find_historical_nodes(key, hash, num, back, info) do
           {:ok, nodes} ->
             acc =
               nodes
@@ -565,13 +576,13 @@ defmodule ExHashRing.Ring do
     end)
   end
 
-  @spec do_gc(table :: :ets.tid(), generation :: Config.generation()) :: :ok
+  @spec do_gc(table :: :ets.tid(), generation()) :: :ok
   defp do_gc(table, generation) do
     :ets.match_delete(table, {{generation, :_}, :_})
     :ok
   end
 
-  @spec find_next_highest_item(table :: :ets.tid, generation :: Config.generation(), size(), hash :: Hash.t()) :: Node.virtual()
+  @spec find_next_highest_item(table :: :ets.tid, generation(), size(), hash :: Hash.t()) :: Node.virtual()
   defp find_next_highest_item(_table, _generation, 0, _hash) do
     nil
   end
@@ -622,8 +633,8 @@ defmodule ExHashRing.Ring do
     # Truncate sizes to fit into depth
     sizes = Enum.take(sizes, state.depth)
 
-    # Update the configuration to atomically cut over to the new generation
-    config = {
+    # Update the information to atomically cut over to the new generation
+    entry = {
       state.table,
       state.depth,
       sizes,
@@ -631,7 +642,7 @@ defmodule ExHashRing.Ring do
       state.overrides
     }
 
-    Config.set(state.name, self(), config)
+    Information.set(state.name, self(), entry)
 
     # Schedule the stale generation for cleanup
     state = schedule_gc(state, next_generation - state.depth)
@@ -640,7 +651,7 @@ defmodule ExHashRing.Ring do
     %__MODULE__{state | generation: next_generation, nodes: nodes, sizes: sizes}
   end
 
-  @spec update_overrides(state :: t(), overrides :: Config.override_map()) :: t()
+  @spec update_overrides(state :: t(), overrides()) :: t()
   defp update_overrides(%__MODULE__{} = state, overrides) do
     # Remove any empty overrides
     overrides =
@@ -652,9 +663,9 @@ defmodule ExHashRing.Ring do
           Map.put(acc, k, v)
       end)
 
-    # Update the current configuration
-    {:ok, {table, depth, sizes, generation, _overrides}} = Config.get(state.name)
-    Config.set(state.name, self(), {table, depth, sizes, generation, overrides})
+    # Update the current information
+    {:ok, {table, depth, sizes, generation, _overrides}} = Information.get(state.name)
+    Information.set(state.name, self(), {table, depth, sizes, generation, overrides})
 
     # Update and return the state
     %__MODULE__{state | overrides: overrides}
