@@ -7,7 +7,7 @@ defmodule ExHashRing.Ring do
   """
   use GenServer
 
-  alias ExHashRing.{Hash, Information, Node, Settings, Utils}
+  alias ExHashRing.{Configuration, Hash, Information, Node, Utils}
 
   @compile {:inline,
             do_find_historical_nodes: 5,
@@ -65,13 +65,13 @@ defmodule ExHashRing.Ring do
     sizes: [size()],
     table: :ets.tid()
   }
-  defstruct depth: Settings.get_depth(),
+  defstruct depth: Configuration.get_depth(),
             generation: 0,
             name: nil,
             nodes: [],
             overrides: %{},
             pending_gcs: %{},
-            replicas: Settings.get_replicas(),
+            replicas: Configuration.get_replicas(),
             sizes: [],
             table: nil
 
@@ -81,22 +81,22 @@ defmodule ExHashRing.Ring do
   Start and link a Ring with the given name.
 
   Ring supports various options as outlined below.
-  - :depth - Number of generations to retain for lookup. Defaults to #{Settings.get_depth()}
+  - :depth - Number of generations to retain for lookup. Defaults to #{Configuration.get_depth()}
   - :named - Boolean that controls whether or not to register the process as a named process.
              Defaults to false
   - :nodes - Initial nodes for the Ring.  Defaults to []
   - :overrides - Initial overrides for the Ring. Defaults to %{}
   - :replicas - Replicas to use for nodes that do not define replicas. Defaults to
-                #{Settings.get_replicas}
+                #{Configuration.get_replicas}
   """
   @spec start_link(name(), options :: Keyword.t()) :: GenServer.on_start()
   def start_link(name, options \\ []) do
     default_options = [
-      depth: Settings.get_depth(),
+      depth: Configuration.get_depth(),
       named: false,
       nodes: [],
       overrides: %{},
-      replicas: Settings.get_replicas(),
+      replicas: Configuration.get_replicas(),
     ]
 
     options = Keyword.merge(default_options, options)
@@ -317,7 +317,7 @@ defmodule ExHashRing.Ring do
   def schedule_gc(%__MODULE__{} = state, generation) do
     pending_gcs =
       Map.put_new_lazy(state.pending_gcs, generation, fn ->
-        Process.send_after(self(), {:gc, generation}, Settings.get_gc_delay())
+        Process.send_after(self(), {:gc, generation}, Configuration.get_gc_delay())
       end)
 
     %__MODULE__{state | pending_gcs: pending_gcs}

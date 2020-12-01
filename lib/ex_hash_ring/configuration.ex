@@ -1,7 +1,7 @@
-defmodule ExHashRing.Settings do
+defmodule ExHashRing.Configuration do
   @moduledoc """
-  Settings provides programmatic access into the various settings that can be configured for
-  ExHashRing.
+  Configuration provides programmatic access into the various configuration settings that can be
+  configured for ExHashRing.
   """
 
   @default_depth 1
