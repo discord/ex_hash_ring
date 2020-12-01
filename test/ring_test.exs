@@ -4,7 +4,6 @@ defmodule ExHashRing.Ring.FindNode.Test do
   alias ExHashRing.Ring
   alias ExHashRing.Support.Harness
 
-
   setup_all do
     rings =
       for replicas <- Harness.replicas(), into: %{} do
@@ -229,7 +228,9 @@ defmodule ExHashRing.Ring.Operations.Test do
   describe "add_node/2" do
     test "name only", %{name: name} do
       expected_nodes = ["d" | @nodes]
-      expected_nodes_with_replicas = for node <- expected_nodes, do: {node, Configuration.get_replicas()}
+
+      expected_nodes_with_replicas =
+        for node <- expected_nodes, do: {node, Configuration.get_replicas()}
 
       {:ok, _} = Ring.add_node(name, "d")
       {:ok, ^expected_nodes} = Ring.get_nodes(name)
@@ -256,7 +257,9 @@ defmodule ExHashRing.Ring.Operations.Test do
   describe "add_nodes/2" do
     test "without replicas", %{name: name} do
       expected_nodes = ["d", "e"] ++ @nodes
-      expected_nodes_with_replicas = for node <- expected_nodes, do: {node, Configuration.get_replicas()}
+
+      expected_nodes_with_replicas =
+        for node <- expected_nodes, do: {node, Configuration.get_replicas()}
 
       {:ok, previous_generation} = Ring.get_generation(name)
 
@@ -288,7 +291,9 @@ defmodule ExHashRing.Ring.Operations.Test do
     test "mixed with and without replicas", %{name: name} do
       expected_nodes = ["d", "e"] ++ @nodes
       expected_nodes_with_replicas = for node <- @nodes, do: {node, Configuration.get_replicas()}
-      expected_nodes_with_replicas = [{"d", Configuration.get_replicas()}, {"e", 100}] ++ expected_nodes_with_replicas
+
+      expected_nodes_with_replicas =
+        [{"d", Configuration.get_replicas()}, {"e", 100}] ++ expected_nodes_with_replicas
 
       {:ok, previous_generation} = Ring.get_generation(name)
 
@@ -313,7 +318,9 @@ defmodule ExHashRing.Ring.Operations.Test do
   describe "remove_node/2" do
     test "returns the retained nodes", %{name: name} do
       expected_nodes = @nodes -- ["c"]
-      expected_nodes_with_replicas = for node <- expected_nodes, do: {node, Configuration.get_replicas()}
+
+      expected_nodes_with_replicas =
+        for node <- expected_nodes, do: {node, Configuration.get_replicas()}
 
       {:ok, ^expected_nodes_with_replicas} = Ring.remove_node(name, "c")
     end
@@ -328,7 +335,9 @@ defmodule ExHashRing.Ring.Operations.Test do
 
     test "retained nodes have the expected number of replicas", %{name: name} do
       expected_nodes = @nodes -- ["c"]
-      expected_nodes_with_replicas = for node <- expected_nodes, do: {node, Configuration.get_replicas()}
+
+      expected_nodes_with_replicas =
+        for node <- expected_nodes, do: {node, Configuration.get_replicas()}
 
       {:ok, _} = Ring.remove_node(name, "c")
 
@@ -347,7 +356,10 @@ defmodule ExHashRing.Ring.Operations.Test do
 
     test "remove node", %{name: name} do
       expected_nodes = @nodes -- ["c"]
-      expected_nodes_with_replicas = for node <- expected_nodes, do: {node, Configuration.get_replicas()}
+
+      expected_nodes_with_replicas =
+        for node <- expected_nodes, do: {node, Configuration.get_replicas()}
+
       {:ok, _} = Ring.remove_node(name, "c")
       {:ok, ^expected_nodes} = Ring.get_nodes(name)
       {:ok, ^expected_nodes_with_replicas} = Ring.get_nodes_with_replicas(name)
@@ -365,14 +377,16 @@ defmodule ExHashRing.Ring.Operations.Test do
     end
 
     test "error to remove unknown node", %{name: name} do
-      assert {:error, :node_not_exists} ==  Ring.remove_node(name, "unknown")
+      assert {:error, :node_not_exists} == Ring.remove_node(name, "unknown")
     end
   end
 
   describe "remove_nodes/2" do
     test "returns the retained nodes", %{name: name} do
       expected_nodes = @nodes -- ["b", "c"]
-      expected_nodes_with_replicas = for node <- expected_nodes, do: {node, Configuration.get_replicas()}
+
+      expected_nodes_with_replicas =
+        for node <- expected_nodes, do: {node, Configuration.get_replicas()}
 
       assert {:ok, ^expected_nodes_with_replicas} = Ring.remove_nodes(name, ["b", "c"])
     end
@@ -387,7 +401,9 @@ defmodule ExHashRing.Ring.Operations.Test do
 
     test "retained nodes have the expected replicas", %{name: name} do
       expected_nodes = @nodes -- ["b", "c"]
-      expected_nodes_with_replicas = for node <- expected_nodes, do: {node, Configuration.get_replicas()}
+
+      expected_nodes_with_replicas =
+        for node <- expected_nodes, do: {node, Configuration.get_replicas()}
 
       {:ok, _} = Ring.remove_nodes(name, ["b", "c"])
 
@@ -583,7 +599,8 @@ defmodule ExHashRing.Ring.Operations.Test do
       assert second_secondary in stable_nodes
 
       # Assert that no other nodes are returned than the first and second generation's nodes
-      assert stable_nodes -- [first_primary, second_primary, first_secondary, second_secondary] == []
+      assert stable_nodes -- [first_primary, second_primary, first_secondary, second_secondary] ==
+               []
 
       # Assert that the newest primary is at the head of the stable nodes
       assert second_primary == hd(stable_nodes)
@@ -640,7 +657,15 @@ defmodule ExHashRing.Ring.Operations.Test do
       assert third_secondary in stable_nodes
 
       # Assert that no other nodes are returned than the first, second, and third generation's nodes
-      assert stable_nodes -- [first_primary, second_primary, third_primary, first_secondary, second_secondary, third_secondary] == []
+      assert stable_nodes --
+               [
+                 first_primary,
+                 second_primary,
+                 third_primary,
+                 first_secondary,
+                 second_secondary,
+                 third_secondary
+               ] == []
 
       # Assert that the newest primary is at the head of the stable nodes
       assert third_primary == hd(stable_nodes)
@@ -709,7 +734,6 @@ defmodule ExHashRing.Ring.Operations.Test do
 
       assert expected == stable_nodes
     end
-
 
     test "all empty generations results in invalid_ring error" do
       name = ExHashRing.Ring.Test.Stable.AllMissing

@@ -94,7 +94,7 @@ defmodule ExHashRing.Node.Test do
       nodes = [
         {"test-node-a", 100},
         {"test-node-b", 200},
-        {"test-node-c", 300},
+        {"test-node-c", 300}
       ]
 
       assert nodes == Node.normalize(nodes, 500)

@@ -68,6 +68,16 @@ iex(6)> Ring.find_node(:example, "key37")
 
 The Quickstart above just scratches the surface of the functionality that ExHashRing provides.  For more details see the [HexDocs](https://hexdocs.pm/ex_hash_ring)
 
+## Configuration
+
+ExHashRing exposes some configuration options under the `:ex_hash_ring` key.
+
+| Key         | Description                                                                              | Default |
+|-------------|------------------------------------------------------------------------------------------|---------|
+| `:depth`    | Default history depth for new rings                                                      | 1       |
+| `:gc_delay` | The amount of time, in milliseconds, to wait before garbage collecting stale generations | 10_000  |
+| `:replicas` | Default replicas setting for new rings                                                   | 512     |
+
 ## License
 
 Hash Ring is released under [the MIT License](LICENSE). Check [LICENSE](LICENSE) file for more information.

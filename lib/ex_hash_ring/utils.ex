@@ -11,7 +11,9 @@ defmodule ExHashRing.Utils do
 
   This function returns the items in reverse order and with a count of how many items were found.
   """
-  @spec take_max(list :: [item], maximum :: non_neg_integer()) :: {list :: [item], count :: non_neg_integer()} when item: term()
+  @spec take_max(list :: [item], maximum :: non_neg_integer()) ::
+          {list :: [item], count :: non_neg_integer()}
+        when item: term()
   def take_max(list, maximum)
 
   def take_max(_, 0), do: {[], 0}

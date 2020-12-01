@@ -45,7 +45,6 @@ defmodule ExHashRing.Configuration do
     Application.get_env(:ex_hash_ring, :depth, @default_depth)
   end
 
-
   @doc """
   Get the configured gc delay.  Result is number of milliseconds to delay.
   """

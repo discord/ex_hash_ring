@@ -61,5 +61,4 @@ defmodule ExHashRing.HashRing.Mixfile do
   defp elixirc_paths(_) do
     ["lib"]
   end
-
 end

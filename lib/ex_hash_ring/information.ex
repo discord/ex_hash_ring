@@ -18,12 +18,12 @@ defmodule ExHashRing.Information do
   in the history, the current generation, and any overrides that should be applied during lookup.
   """
   @type entry :: {
-    table :: :ets.tid(),
-    depth :: Ring.depth(),
-    sizes :: [Ring.size()],
-    generation :: Ring.generation(),
-    overrides :: Ring.overrides()
-  }
+          table :: :ets.tid(),
+          depth :: Ring.depth(),
+          sizes :: [Ring.size()],
+          generation :: Ring.generation(),
+          overrides :: Ring.overrides()
+        }
 
   defstruct monitored_pids: %{}
 

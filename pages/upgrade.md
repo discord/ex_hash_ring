@@ -14,13 +14,13 @@ Even though the Ring is owned by a GenServer, the lookups into the Ring are done
 
 With the In-Memory and ETS versions of the Ring unified into a single model, some Module renaming was done to simplify the library.
 
-| Pre-6.0.0                      | 6.0.0             | Change                                                         |
-|--------------------------------|-------------------|----------------------------------------------------------------|
-| ExHashRing                     | ExHashRing        | No Change                                                      |
-| ExHashRing.HashRing            | ExHashRing.Ring   | The datastructure is removed in favor of the GenServer version |
-| ExHashRing.HashRing.Utils      | ExHashRing.Utils  | No Change                                                      |
-| ExHashRing.HashRing.ETS        | ExHashRing.Ring   | Module renamed to Ring, interface has changed                  |
-| ExHashRing.HashRing.ETS.Config | ExHashRing.Config | Module renamed, configuration entry structure changed          |
+| Pre-6.0.0                      | 6.0.0                  | Change                                                         |
+|--------------------------------|------------------------|----------------------------------------------------------------|
+| ExHashRing                     | ExHashRing             | No Change                                                      |
+| ExHashRing.HashRing            | ExHashRing.Ring        | The datastructure is removed in favor of the GenServer version |
+| ExHashRing.HashRing.Utils      | ExHashRing.Utils       | No Change                                                      |
+| ExHashRing.HashRing.ETS        | ExHashRing.Ring        | Module renamed to Ring, interface has changed                  |
+| ExHashRing.HashRing.ETS.Config | ExHashRing.Information | Module renamed, entry structure changed          |
 
 ### History Support
 
@@ -63,9 +63,11 @@ The option `:default_num_replicas` was renamed to `:replicas`.
 
 Since a Generation is now a more important concepts in the library this function was renamed from `get_ring_gen/1` to `get_generation/1`.
 
-### Ring Configuration
+### Ring Information
 
-`ExHashRing.HashRing.ETS.Config` was renamed to `ExHashRing.Config` and serves a similar purpose.  The interface is largely the same, but the configuration struct that can be saved and read to the configuration has been changed.
+`ExHashRing.HashRing.ETS.Config` was renamed to `ExHashRing.Information` and serves a similar purpose.  The interface is largely the same, but the entry tuple that can be saved and read to has been changed.
+
+The module was renamed from `Config` to `Information` because it holds look-aside information similar to `Process.info`.  This is also to deconflict it with the concept of Application Configuration.
 
 #### Pre-6.0.0
 
@@ -92,7 +94,7 @@ or
 
 #### 6.0.0
 
-In 6.0.0 more configuration information is required to support the history functionality and to unify the two older representations into a single coherent representation
+In 6.0.0 more ring information is required to support the history functionality and to unify the two older representations into a single coherent representation
 
 The entries in the table are always structured as follows.
 
@@ -121,3 +123,17 @@ The `take_max/2` utility function has been left in this module but the `hash/1` 
 `ExHashRing.Utils.gen_items/1,2` has been replaced by the `ExHashRing.Node.expand/1,2` functions.
 
 Both of these replacements work largely in the same way as the previous versions and were moved out of Utils into more appropriate modules.
+
+### Application Configuration
+
+Prior to version 6.0.0 ExHashRing only had a single configuration value that could be set, `:hash_ring` `:ring_gen_gc_delay`
+
+This keyspace is non-conventional since it disagrees with the OTP Application name.  6.0.0 corrects this and stores configuration under the `:ex_hash_ring` key.
+
+Refer to the following table for more migration details
+
+| Pre-6.0.0            | 6.0.0       | Description                                                                                                               |
+|----------------------|-------------|---------------------------------------------------------------------------------------------------------------------------|
+| `:ring_gen_gc_delay` | `:gc_delay` | The amount of time, in milliseconds, to wait before garbage collecting stale generations, defaults to 10_000 (10 seconds) |
+| N / A                | `:depth`    | Default history depth for new rings, defaults to 1                                                                        |
+| N / A                | `:replicas` | Default replicas setting for new rings, defaults to 512                                                                   |

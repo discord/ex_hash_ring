@@ -53,7 +53,6 @@ defmodule ExHashRing.Node do
     |> expand()
   end
 
-
   @doc """
   Converts definitions into fully specified nodes.
 

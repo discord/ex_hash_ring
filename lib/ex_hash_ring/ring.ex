@@ -53,18 +53,17 @@ defmodule ExHashRing.Ring do
   """
   @type size :: non_neg_integer()
 
-
   @type t :: %__MODULE__{
-    depth: depth(),
-    generation: generation(),
-    name: name(),
-    nodes: [Node.t()],
-    overrides: overrides(),
-    pending_gcs: %{generation() => reference()},
-    replicas: Node.replicas(),
-    sizes: [size()],
-    table: :ets.tid()
-  }
+          depth: depth(),
+          generation: generation(),
+          name: name(),
+          nodes: [Node.t()],
+          overrides: overrides(),
+          pending_gcs: %{generation() => reference()},
+          replicas: Node.replicas(),
+          sizes: [size()],
+          table: :ets.tid()
+        }
   defstruct depth: Configuration.get_depth(),
             generation: 0,
             name: nil,
@@ -87,7 +86,7 @@ defmodule ExHashRing.Ring do
   - :nodes - Initial nodes for the Ring.  Defaults to []
   - :overrides - Initial overrides for the Ring. Defaults to %{}
   - :replicas - Replicas to use for nodes that do not define replicas. Defaults to
-                #{Configuration.get_replicas}
+                #{Configuration.get_replicas()}
   """
   @spec start_link(name(), options :: Keyword.t()) :: GenServer.on_start()
   def start_link(name, options \\ []) do
@@ -96,7 +95,7 @@ defmodule ExHashRing.Ring do
       named: false,
       nodes: [],
       overrides: %{},
-      replicas: Configuration.get_replicas(),
+      replicas: Configuration.get_replicas()
     ]
 
     options = Keyword.merge(default_options, options)
@@ -108,14 +107,14 @@ defmodule ExHashRing.Ring do
         []
       end
 
-
     GenServer.start_link(__MODULE__, {name, options}, gen_opts)
   end
 
   @doc """
   Adds a node to the existing set of nodes in the ring.
   """
-  @spec add_node(name(), Node.name(), Node.replicas() | nil) :: {:ok, [Node.t()]} | {:error, :node_exists}
+  @spec add_node(name(), Node.name(), Node.replicas() | nil) ::
+          {:ok, [Node.t()]} | {:error, :node_exists}
   def add_node(name, node_name, num_replicas \\ nil)
 
   def add_node(name, node_name, nil) do
@@ -129,7 +128,8 @@ defmodule ExHashRing.Ring do
   @doc """
   Adds multiple nodes to the existing set of nodes in the ring.
   """
-  @spec add_nodes(name(), nodes :: [Node.definition()]) :: {:ok, [Node.t()]} | {:error, :node_exists}
+  @spec add_nodes(name(), nodes :: [Node.definition()]) ::
+          {:ok, [Node.t()]} | {:error, :node_exists}
   def add_nodes(name, nodes) do
     GenServer.call(name, {:add_nodes, nodes})
   end
@@ -139,7 +139,7 @@ defmodule ExHashRing.Ring do
   """
   @spec find_node(name(), key()) :: {:ok, Node.name()} | {:error, atom}
   def find_node(name, key) do
-    with {:ok, [node]} <- find_nodes(name, key, 1)  do
+    with {:ok, [node]} <- find_nodes(name, key, 1) do
       {:ok, node}
     end
   end
@@ -153,7 +153,8 @@ defmodule ExHashRing.Ring do
     find_historical_nodes(name, key, num, 0)
   end
 
-  @spec find_historical_node(name(), key(), back :: non_neg_integer()) :: {:ok, Node.name()} | {:error, atom}
+  @spec find_historical_node(name(), key(), back :: non_neg_integer()) ::
+          {:ok, Node.name()} | {:error, atom}
   def find_historical_node(name, key, back) do
     with {:ok, [node]} <- find_historical_nodes(name, key, 1, back) do
       {:ok, node}
@@ -164,7 +165,8 @@ defmodule ExHashRing.Ring do
   Finds the specified number of nodes responsible for the given key in the specified ring's
   history, going back `back` number of generations.
   """
-  @spec find_historical_nodes(name(), key(), num :: non_neg_integer(), back :: non_neg_integer()) :: {:ok, [Node.name()]} | {:error, atom}
+  @spec find_historical_nodes(name(), key(), num :: non_neg_integer(), back :: non_neg_integer()) ::
+          {:ok, [Node.name()]} | {:error, atom}
   def find_historical_nodes(name, key, num, back) do
     with {:ok, info} <- Information.get(name),
          hash = Hash.of(key),
@@ -177,7 +179,8 @@ defmodule ExHashRing.Ring do
   Finds the specificed number of nodes responsible for the given key by looking at each generation
   in the ring's configured depth.  See `find_stable_nodes/4` for more information.
   """
-  @spec find_stable_nodes(name(), key(), num :: non_neg_integer()) :: {:ok, [Node.name()]} | {:error, atom}
+  @spec find_stable_nodes(name(), key(), num :: non_neg_integer()) ::
+          {:ok, [Node.name()]} | {:error, atom}
   def find_stable_nodes(name, key, num) do
     with {:ok, {_table, depth, _sizes, _generation, _overrides} = info} <- Information.get(name),
          hash = Hash.of(key),
@@ -192,7 +195,8 @@ defmodule ExHashRing.Ring do
   `back` * `num`; where `num` = number of nodes requested, and `back` = the number of generations
   to consider.
   """
-  @spec find_stable_nodes(name(), key(), num :: non_neg_integer(), back :: pos_integer()) :: {:ok, [Node.name()]} | {:error, atom}
+  @spec find_stable_nodes(name(), key(), num :: non_neg_integer(), back :: pos_integer()) ::
+          {:ok, [Node.name()]} | {:error, atom}
   def find_stable_nodes(name, key, num, back) do
     with {:ok, info} <- Information.get(name),
          hash = Hash.of(key),
@@ -218,8 +222,6 @@ defmodule ExHashRing.Ring do
   def force_gc(name, generation) do
     GenServer.call(name, {:force_gc, generation})
   end
-
-
 
   @doc """
   Get the current ring generation
@@ -270,7 +272,6 @@ defmodule ExHashRing.Ring do
   def stop(name) do
     GenServer.stop(name)
   end
-
 
   @doc """
   Removes a node from the ring by its name.
@@ -323,7 +324,6 @@ defmodule ExHashRing.Ring do
     %__MODULE__{state | pending_gcs: pending_gcs}
   end
 
-
   ## Server
 
   @spec init({name(), options :: Keyword.t()}) :: {:ok, t()}
@@ -339,7 +339,7 @@ defmodule ExHashRing.Ring do
       depth: options[:depth],
       name: name,
       table: table,
-      replicas: options[:replicas],
+      replicas: options[:replicas]
     }
 
     nodes = Node.normalize(options[:nodes], options[:replicas])
@@ -355,9 +355,10 @@ defmodule ExHashRing.Ring do
   def handle_call({:add_nodes, nodes}, _from, %__MODULE__{} = state) do
     nodes = Node.normalize(nodes, state.replicas)
 
-    has_existing_nodes? = Enum.any?(nodes, fn {name, _} ->
-      has_node_with_name?(state.nodes, name)
-    end)
+    has_existing_nodes? =
+      Enum.any?(nodes, fn {name, _} ->
+        has_node_with_name?(state.nodes, name)
+      end)
 
     if has_existing_nodes? do
       {:reply, {:error, :node_exists}, state}
@@ -416,9 +417,10 @@ defmodule ExHashRing.Ring do
   end
 
   def handle_call({:remove_nodes, node_names}, _from, %__MODULE__{} = state) do
-    has_unknown_nodes? = Enum.any?(node_names, fn name ->
-      not has_node_with_name?(state.nodes, name)
-    end)
+    has_unknown_nodes? =
+      Enum.any?(node_names, fn name ->
+        not has_node_with_name?(state.nodes, name)
+      end)
 
     if has_unknown_nodes? do
       {:reply, {:error, :node_not_exists}, state}
@@ -454,12 +456,12 @@ defmodule ExHashRing.Ring do
   ## Private
 
   @spec do_find_historical_nodes(
-    key(),
-    hash :: Hash.t(),
-    num :: non_neg_integer(),
-    back :: non_neg_integer(),
-    info :: Information.entry()
-  ) :: {:ok, [Node.name()]} | {:error, atom()}
+          key(),
+          hash :: Hash.t(),
+          num :: non_neg_integer(),
+          back :: non_neg_integer(),
+          info :: Information.entry()
+        ) :: {:ok, [Node.name()]} | {:error, atom()}
   defp do_find_historical_nodes(key, hash, num, back, info) do
     {table, _depth, sizes, generation, overrides} = info
 
@@ -473,14 +475,14 @@ defmodule ExHashRing.Ring do
   end
 
   @spec do_find_nodes(
-    table :: :ets.tid(),
-    generation(),
-    size(),
-    remaining :: non_neg_integer(),
-    hash :: Hash.t(),
-    found :: [Node.name()],
-    found_length :: non_neg_integer()
-  ) :: [Node.name()]
+          table :: :ets.tid(),
+          generation(),
+          size(),
+          remaining :: non_neg_integer(),
+          hash :: Hash.t(),
+          found :: [Node.name()],
+          found_length :: non_neg_integer()
+        ) :: [Node.name()]
   defp do_find_nodes(_table, _generation, _size, 0, _hash, found, _found_length) do
     # Remaining is now 0, all the requested nodes have been found
     found
@@ -509,14 +511,14 @@ defmodule ExHashRing.Ring do
   end
 
   @spec do_find_nodes_in_table(
-    key(),
-    hash :: Hash.t(),
-    table :: :ets.tid(),
-    overrides(),
-    generation(),
-    size(),
-    num :: non_neg_integer()
-  ) :: {:ok, [binary]} | {:error, term}
+          key(),
+          hash :: Hash.t(),
+          table :: :ets.tid(),
+          overrides(),
+          generation(),
+          size(),
+          num :: non_neg_integer()
+        ) :: {:ok, [binary]} | {:error, term}
   defp do_find_nodes_in_table(_key, _hash, _table, _overrides, _generation, 0, _num) do
     {:error, :invalid_ring}
   end
@@ -525,7 +527,8 @@ defmodule ExHashRing.Ring do
     {:ok, []}
   end
 
-  defp do_find_nodes_in_table(_key, hash, table, overrides, generation, size, num) when map_size(overrides) == 0 do
+  defp do_find_nodes_in_table(_key, hash, table, overrides, generation, size, num)
+       when map_size(overrides) == 0 do
     {:ok, do_find_nodes(table, generation, size, num, hash, [], 0)}
   end
 
@@ -539,16 +542,17 @@ defmodule ExHashRing.Ring do
           {[], 0}
       end
 
-    {:ok, do_find_nodes(table, generation, size, max(num - found_length, 0), hash, found, found_length)}
+    {:ok,
+     do_find_nodes(table, generation, size, max(num - found_length, 0), hash, found, found_length)}
   end
 
   @spec do_find_stable_nodes(
-    key(),
-    hash :: Hash.t(),
-    num :: non_neg_integer(),
-    back :: non_neg_integer(),
-    info :: Information.entry()
-  ) :: {:ok, [Node.name()]} | {:error, atom()}
+          key(),
+          hash :: Hash.t(),
+          num :: non_neg_integer(),
+          back :: non_neg_integer(),
+          info :: Information.entry()
+        ) :: {:ok, [Node.name()]} | {:error, atom()}
   def do_find_stable_nodes(key, hash, num, back, info) do
     Enum.reduce(0..(back - 1), {:error, :invalid_ring}, fn
       back, {:error, :invalid_ring} ->
@@ -582,7 +586,8 @@ defmodule ExHashRing.Ring do
     :ok
   end
 
-  @spec find_next_highest_item(table :: :ets.tid, generation(), size(), hash :: Hash.t()) :: Node.virtual()
+  @spec find_next_highest_item(table :: :ets.tid(), generation(), size(), hash :: Hash.t()) ::
+          Node.virtual()
   defp find_next_highest_item(_table, _generation, 0, _hash) do
     nil
   end
