@@ -1,4 +1,4 @@
-defmodule ExHashRing.Information do
+defmodule ExHashRing.Info do
   @moduledoc """
   Provides an interface for querying information about Rings.
 
@@ -35,13 +35,13 @@ defmodule ExHashRing.Information do
   end
 
   @doc """
-  Retrieves the information for the specified ring.
+  Retrieves the info entry for the specified ring.
   """
   @spec get(name :: Ring.name()) :: {:ok, entry()} | {:error, :no_ring}
   def get(name) do
     case :ets.lookup(__MODULE__, name) do
-      [{^name, information}] ->
-        {:ok, information}
+      [{^name, entry}] ->
+        {:ok, entry}
 
       _ ->
         {:error, :no_ring}
@@ -49,11 +49,11 @@ defmodule ExHashRing.Information do
   end
 
   @doc """
-  Sets the information for the specified ring.
+  Sets the info entry for the specified ring.
   """
-  @spec set(name :: Ring.name(), owner_pid :: pid(), information :: entry) :: :ok
-  def set(name, owner_pid, information) do
-    GenServer.call(__MODULE__, {:set, name, owner_pid, information})
+  @spec set(name :: Ring.name(), owner_pid :: pid(), entry()) :: :ok
+  def set(name, owner_pid, entry) do
+    GenServer.call(__MODULE__, {:set, name, owner_pid, entry})
   end
 
   ## Server
@@ -70,9 +70,9 @@ defmodule ExHashRing.Information do
     {:ok, %__MODULE__{}}
   end
 
-  def handle_call({:set, name, owner_pid, information}, _from, state) do
+  def handle_call({:set, name, owner_pid, entry}, _from, state) do
     state = monitor_ring(state, name, owner_pid)
-    true = :ets.insert(__MODULE__, {name, information})
+    true = :ets.insert(__MODULE__, {name, entry})
     {:reply, :ok, state}
   end
 

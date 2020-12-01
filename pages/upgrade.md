@@ -14,13 +14,13 @@ Even though the Ring is owned by a GenServer, the lookups into the Ring are done
 
 With the In-Memory and ETS versions of the Ring unified into a single model, some Module renaming was done to simplify the library.
 
-| Pre-6.0.0                      | 6.0.0                  | Change                                                         |
-|--------------------------------|------------------------|----------------------------------------------------------------|
-| ExHashRing                     | ExHashRing             | No Change                                                      |
-| ExHashRing.HashRing            | ExHashRing.Ring        | The datastructure is removed in favor of the GenServer version |
-| ExHashRing.HashRing.Utils      | ExHashRing.Utils       | No Change                                                      |
-| ExHashRing.HashRing.ETS        | ExHashRing.Ring        | Module renamed to Ring, interface has changed                  |
-| ExHashRing.HashRing.ETS.Config | ExHashRing.Information | Module renamed, entry structure changed          |
+| Pre-6.0.0                      | 6.0.0            | Change                                                         |
+|--------------------------------|------------------|----------------------------------------------------------------|
+| ExHashRing                     | ExHashRing       | No Change                                                      |
+| ExHashRing.HashRing            | ExHashRing.Ring  | The datastructure is removed in favor of the GenServer version |
+| ExHashRing.HashRing.Utils      | ExHashRing.Utils | No Change                                                      |
+| ExHashRing.HashRing.ETS        | ExHashRing.Ring  | Module renamed to Ring, interface has changed                  |
+| ExHashRing.HashRing.ETS.Config | ExHashRing.Info  | Module renamed, entry structure changed          |
 
 ### History Support
 
@@ -63,11 +63,11 @@ The option `:default_num_replicas` was renamed to `:replicas`.
 
 Since a Generation is now a more important concepts in the library this function was renamed from `get_ring_gen/1` to `get_generation/1`.
 
-### Ring Information
+### Ring Info
 
-`ExHashRing.HashRing.ETS.Config` was renamed to `ExHashRing.Information` and serves a similar purpose.  The interface is largely the same, but the entry tuple that can be saved and read to has been changed.
+`ExHashRing.HashRing.ETS.Config` was renamed to `ExHashRing.Info` and serves a similar purpose.  The interface is largely the same, but the entry tuple that can be saved and read to has been changed.
 
-The module was renamed from `Config` to `Information` because it holds look-aside information similar to `Process.info`.  This is also to deconflict it with the concept of Application Configuration.
+The module was renamed from `Config` to `Info` because it holds look-aside information similar to `Process.info`.  This is also to deconflict it with the concept of Application Configuration.
 
 #### Pre-6.0.0
 
@@ -94,7 +94,7 @@ or
 
 #### 6.0.0
 
-In 6.0.0 more ring information is required to support the history functionality and to unify the two older representations into a single coherent representation
+In 6.0.0 more ring information is required to support the history functionality and to unify the two older representations into a single coherent representation.
 
 The entries in the table are always structured as follows.
 

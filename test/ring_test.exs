@@ -113,7 +113,7 @@ end
 defmodule ExHashRing.Ring.Operations.Test do
   use ExUnit.Case
 
-  alias ExHashRing.{Configuration, Information, Ring}
+  alias ExHashRing.{Configuration, Info, Ring}
 
   @nodes ["a", "b", "c"]
 
@@ -473,9 +473,9 @@ defmodule ExHashRing.Ring.Operations.Test do
   end
 
   test "ets information will remove entry", %{name: name} do
-    refute Information.get(name) == {:error, :no_ring}
+    refute Info.get(name) == {:error, :no_ring}
     assert Ring.stop(name) == :ok
-    assert await(fn -> Information.get(name) == {:error, :no_ring} end)
+    assert await(fn -> Info.get(name) == {:error, :no_ring} end)
   end
 
   test "ring gen gc happens", %{name: name} do
@@ -902,7 +902,7 @@ defmodule ExHashRing.Ring.Operations.Test do
   end
 
   defp count_generation_entries(name, generation) do
-    {:ok, {table, _depth, _sizes, _genertion, _overrids}} = Information.get(name)
+    {:ok, {table, _depth, _sizes, _genertion, _overrids}} = Info.get(name)
 
     table
     |> :ets.tab2list()
@@ -917,7 +917,7 @@ defmodule ExHashRing.Ring.Operations.Test do
   end
 
   defp ring_ets_table_size(name) do
-    {:ok, {table, _depth, _sizes, _generation, _overrides}} = Information.get(name)
+    {:ok, {table, _depth, _sizes, _generation, _overrides}} = Info.get(name)
     :ets.info(table, :size)
   end
 

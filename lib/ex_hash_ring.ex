@@ -9,6 +9,6 @@ defmodule ExHashRing do
   use Application
 
   def start(_type, _args) do
-    ExHashRing.Information.start_link()
+    ExHashRing.Info.start_link()
   end
 end

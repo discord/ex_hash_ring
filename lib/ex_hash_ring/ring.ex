@@ -7,7 +7,7 @@ defmodule ExHashRing.Ring do
   """
   use GenServer
 
-  alias ExHashRing.{Configuration, Hash, Information, Node, Utils}
+  alias ExHashRing.{Configuration, Hash, Info, Node, Utils}
 
   @compile {:inline,
             do_find_historical_nodes: 5,
@@ -168,7 +168,7 @@ defmodule ExHashRing.Ring do
   @spec find_historical_nodes(name(), key(), num :: non_neg_integer(), back :: non_neg_integer()) ::
           {:ok, [Node.name()]} | {:error, atom}
   def find_historical_nodes(name, key, num, back) do
-    with {:ok, info} <- Information.get(name),
+    with {:ok, info} <- Info.get(name),
          hash = Hash.of(key),
          {:ok, nodes} <- do_find_historical_nodes(key, hash, num, back, info) do
       {:ok, Enum.reverse(nodes)}
@@ -182,7 +182,7 @@ defmodule ExHashRing.Ring do
   @spec find_stable_nodes(name(), key(), num :: non_neg_integer()) ::
           {:ok, [Node.name()]} | {:error, atom}
   def find_stable_nodes(name, key, num) do
-    with {:ok, {_table, depth, _sizes, _generation, _overrides} = info} <- Information.get(name),
+    with {:ok, {_table, depth, _sizes, _generation, _overrides} = info} <- Info.get(name),
          hash = Hash.of(key),
          {:ok, nodes} <- do_find_stable_nodes(key, hash, num, depth, info) do
       {:ok, Enum.reverse(nodes)}
@@ -198,7 +198,7 @@ defmodule ExHashRing.Ring do
   @spec find_stable_nodes(name(), key(), num :: non_neg_integer(), back :: pos_integer()) ::
           {:ok, [Node.name()]} | {:error, atom}
   def find_stable_nodes(name, key, num, back) do
-    with {:ok, info} <- Information.get(name),
+    with {:ok, info} <- Info.get(name),
          hash = Hash.of(key),
          {:ok, nodes} <- do_find_stable_nodes(key, hash, num, back, info) do
       {:ok, Enum.reverse(nodes)}
@@ -228,7 +228,7 @@ defmodule ExHashRing.Ring do
   """
   @spec get_generation(name()) :: {:ok, generation()} | :error
   def get_generation(name) do
-    with {:ok, {_table, _depth, _sizes, generation, _overrides}} <- Information.get(name) do
+    with {:ok, {_table, _depth, _sizes, generation, _overrides}} <- Info.get(name) do
       {:ok, generation}
     end
   end
@@ -460,7 +460,7 @@ defmodule ExHashRing.Ring do
           hash :: Hash.t(),
           num :: non_neg_integer(),
           back :: non_neg_integer(),
-          info :: Information.entry()
+          info :: Info.entry()
         ) :: {:ok, [Node.name()]} | {:error, atom()}
   defp do_find_historical_nodes(key, hash, num, back, info) do
     {table, _depth, sizes, generation, overrides} = info
@@ -551,7 +551,7 @@ defmodule ExHashRing.Ring do
           hash :: Hash.t(),
           num :: non_neg_integer(),
           back :: non_neg_integer(),
-          info :: Information.entry()
+          info :: Info.entry()
         ) :: {:ok, [Node.name()]} | {:error, atom()}
   def do_find_stable_nodes(key, hash, num, back, info) do
     Enum.reduce(0..(back - 1), {:error, :invalid_ring}, fn
@@ -647,7 +647,7 @@ defmodule ExHashRing.Ring do
       state.overrides
     }
 
-    Information.set(state.name, self(), entry)
+    Info.set(state.name, self(), entry)
 
     # Schedule the stale generation for cleanup
     state = schedule_gc(state, next_generation - state.depth)
@@ -669,8 +669,8 @@ defmodule ExHashRing.Ring do
       end)
 
     # Update the current information
-    {:ok, {table, depth, sizes, generation, _overrides}} = Information.get(state.name)
-    Information.set(state.name, self(), {table, depth, sizes, generation, overrides})
+    {:ok, {table, depth, sizes, generation, _overrides}} = Info.get(state.name)
+    Info.set(state.name, self(), {table, depth, sizes, generation, overrides})
 
     # Update and return the state
     %__MODULE__{state | overrides: overrides}
