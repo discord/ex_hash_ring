@@ -87,8 +87,8 @@ defmodule ExHashRing.Ring.Benchmark do
 
   defp new_ring(overrides \\ %{}) do
     {:ok, _} =
-      Ring.start_link(@name,
-        named: true,
+      Ring.start_link(
+        name: @name,
         nodes: @nodes,
         overrides: overrides,
         replicas: @replicas
@@ -101,9 +101,9 @@ defmodule ExHashRing.Ring.Benchmark do
     original_nodes = Enum.slice(@nodes, 0, 2)
 
     {:ok, _} =
-      Ring.start_link(@name,
+      Ring.start_link(
         depth: 2,
-        named: true,
+        name: @name,
         nodes: original_nodes,
         replicas: @replicas,
         overrides: overrides

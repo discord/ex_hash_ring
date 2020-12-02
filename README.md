@@ -35,14 +35,14 @@ Each Ring is managed by a GenServer, here's an example of starting an empty Ring
 ```elixir
 iex(1)> alias ExHashRing.Ring
 ExHashRing.Ring
-iex(2)> {:ok, _} = Ring.start_link(:example, named: true)
+iex(2)> {:ok, ring} = Ring.start_link()
 {:ok, #PID<0.166.0>}
 ```
 
 We can add a single node with `add_node/2`
 
 ```elixir
-iex(3)> Ring.add_node(:example, "a")
+iex(3)> Ring.add_node(ring, "a")
 {:ok, [{"a", 512}]}
 ```
 
@@ -51,16 +51,16 @@ The `512` above is the number of replicas for this node.  Since we did not speci
 We can add another node with a custom replica count with `add_node/3`
 
 ```elixir
-iex(4)> Ring.add_node(:example, "b", 100)
+iex(4)> Ring.add_node(ring, "b", 100)
 {:ok, [{"b", 100}, {"a", 512}]}
 ```
 
 Now that we have some nodes we can use our Ring to map keys to nodes with the `find_node/2` function.
 
 ```elixir
-iex(5)> Ring.find_node(:example, "key1")
+iex(5)> Ring.find_node(ring, "key1")
 {:ok, "a"}
-iex(6)> Ring.find_node(:example, "key37")
+iex(6)> Ring.find_node(ring, "key37")
 {:ok, "b"}
 ```
 

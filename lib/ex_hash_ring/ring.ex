@@ -44,9 +44,61 @@ defmodule ExHashRing.Ring do
   @type name :: atom()
 
   @typedoc """
+  Option that controls the number of generations to retain for lookup.
+
+  Defaults to #{Configuration.get_depth()}
+  """
+  @type option_depth :: {:depth, depth()}
+
+  @typedoc """
+  Option that controls the name to register this process under, Rings that are registered can use
+  their name in place of their pid.
+
+  Defaults behavior is to not register the Ring process.
+  """
+  @type option_name :: {:name, name()}
+
+  @typedoc """
+  Option that controls the initial nodes for the Ring.
+
+  Defaults to []
+  """
+  @type option_nodes :: {:nodes, [Node.definition()]}
+
+  @typedoc """
+  Option that controls the initial overrides for the Ring.
+
+  Defaults to %{}
+  """
+  @type option_overrides :: {:overrides, overrides()}
+
+  @typedoc """
+  Option that controls the number of replicas to use for nodes that do not define replicas.
+
+  Defaults to #{Configuration.get_replicas()}
+  """
+  @type option_replicas :: {:replicas, Node.replicas()}
+
+  @typedoc """
+  Union type that represents all valid options
+  """
+  @type option :: option_depth | option_name | option_nodes | option_overrides | option_replicas
+
+  @typedoc """
+  List of options that can be provided when starting a Ring, see the `t:option/0` type and its
+  associated types for more information.
+  """
+  @type options :: [option]
+
+  @typedoc """
   Overrides allow the Ring to always resolve a given key to a set list of nodes.
   """
   @type overrides :: %{key() => [Node.name()]}
+
+  @typedoc """
+  Several functions accept either a name for a named Ring or a pid for an anonymous Ring
+  """
+  @type ring :: name | pid()
 
   @typedoc """
   Ring size is a memoized count of the number of logical nodes in a ring
@@ -56,7 +108,6 @@ defmodule ExHashRing.Ring do
   @type t :: %__MODULE__{
           depth: depth(),
           generation: generation(),
-          name: name(),
           nodes: [Node.t()],
           overrides: overrides(),
           pending_gcs: %{generation() => reference()},
@@ -66,7 +117,6 @@ defmodule ExHashRing.Ring do
         }
   defstruct depth: Configuration.get_depth(),
             generation: 0,
-            name: nil,
             nodes: [],
             overrides: %{},
             pending_gcs: %{},
@@ -79,20 +129,12 @@ defmodule ExHashRing.Ring do
   @doc """
   Start and link a Ring with the given name.
 
-  Ring supports various options as outlined below.
-  - :depth - Number of generations to retain for lookup. Defaults to #{Configuration.get_depth()}
-  - :named - Boolean that controls whether or not to register the process as a named process.
-             Defaults to false
-  - :nodes - Initial nodes for the Ring.  Defaults to []
-  - :overrides - Initial overrides for the Ring. Defaults to %{}
-  - :replicas - Replicas to use for nodes that do not define replicas. Defaults to
-                #{Configuration.get_replicas()}
+  Ring supports various options see `t:options/0` for more information.
   """
-  @spec start_link(name(), options :: Keyword.t()) :: GenServer.on_start()
-  def start_link(name, options \\ []) do
+  @spec start_link(options()) :: GenServer.on_start()
+  def start_link(options \\ []) do
     default_options = [
       depth: Configuration.get_depth(),
-      named: false,
       nodes: [],
       overrides: %{},
       replicas: Configuration.get_replicas()
@@ -101,45 +143,45 @@ defmodule ExHashRing.Ring do
     options = Keyword.merge(default_options, options)
 
     gen_opts =
-      if options[:named] do
-        [name: name]
+      if options[:name] do
+        [name: options[:name]]
       else
         []
       end
 
-    GenServer.start_link(__MODULE__, {name, options}, gen_opts)
+    GenServer.start_link(__MODULE__, options, gen_opts)
   end
 
   @doc """
   Adds a node to the existing set of nodes in the ring.
   """
-  @spec add_node(name(), Node.name(), Node.replicas() | nil) ::
+  @spec add_node(ring(), Node.name(), Node.replicas() | nil) ::
           {:ok, [Node.t()]} | {:error, :node_exists}
-  def add_node(name, node_name, num_replicas \\ nil)
+  def add_node(ring, node_name, num_replicas \\ nil)
 
-  def add_node(name, node_name, nil) do
-    GenServer.call(name, {:add_nodes, [node_name]})
+  def add_node(ring, node_name, nil) do
+    GenServer.call(ring, {:add_nodes, [node_name]})
   end
 
-  def add_node(name, node_name, num_replicas) do
-    GenServer.call(name, {:add_nodes, [{node_name, num_replicas}]})
+  def add_node(ring, node_name, num_replicas) do
+    GenServer.call(ring, {:add_nodes, [{node_name, num_replicas}]})
   end
 
   @doc """
   Adds multiple nodes to the existing set of nodes in the ring.
   """
-  @spec add_nodes(name(), nodes :: [Node.definition()]) ::
+  @spec add_nodes(ring(), nodes :: [Node.definition()]) ::
           {:ok, [Node.t()]} | {:error, :node_exists}
-  def add_nodes(name, nodes) do
-    GenServer.call(name, {:add_nodes, nodes})
+  def add_nodes(ring, nodes) do
+    GenServer.call(ring, {:add_nodes, nodes})
   end
 
   @doc """
   Finds the node responsible for the given key in the specified ring.
   """
-  @spec find_node(name(), key()) :: {:ok, Node.name()} | {:error, atom}
-  def find_node(name, key) do
-    with {:ok, [node]} <- find_nodes(name, key, 1) do
+  @spec find_node(ring(), key()) :: {:ok, Node.name()} | {:error, atom}
+  def find_node(ring, key) do
+    with {:ok, [node]} <- find_nodes(ring, key, 1) do
       {:ok, node}
     end
   end
@@ -148,15 +190,15 @@ defmodule ExHashRing.Ring do
   Finds the specified number of nodes responsible for the given key in the specified ring's
   current generation.
   """
-  @spec find_nodes(name(), key(), non_neg_integer()) :: {:ok, [Node.name()]} | {:error, atom}
-  def find_nodes(name, key, num) do
-    find_historical_nodes(name, key, num, 0)
+  @spec find_nodes(ring(), key(), num :: non_neg_integer()) :: {:ok, [Node.name()]} | {:error, reason :: atom()}
+  def find_nodes(ring, key, num) do
+    find_historical_nodes(ring, key, num, 0)
   end
 
-  @spec find_historical_node(name(), key(), back :: non_neg_integer()) ::
+  @spec find_historical_node(ring(), key(), back :: non_neg_integer()) ::
           {:ok, Node.name()} | {:error, atom}
-  def find_historical_node(name, key, back) do
-    with {:ok, [node]} <- find_historical_nodes(name, key, 1, back) do
+  def find_historical_node(ring, key, back) do
+    with {:ok, [node]} <- find_historical_nodes(ring, key, 1, back) do
       {:ok, node}
     end
   end
@@ -165,10 +207,10 @@ defmodule ExHashRing.Ring do
   Finds the specified number of nodes responsible for the given key in the specified ring's
   history, going back `back` number of generations.
   """
-  @spec find_historical_nodes(name(), key(), num :: non_neg_integer(), back :: non_neg_integer()) ::
+  @spec find_historical_nodes(ring(), key(), num :: non_neg_integer(), back :: non_neg_integer()) ::
           {:ok, [Node.name()]} | {:error, atom}
-  def find_historical_nodes(name, key, num, back) do
-    with {:ok, info} <- Info.get(name),
+  def find_historical_nodes(ring, key, num, back) do
+    with {:ok, info} <- Info.get(ring),
          hash = Hash.of(key),
          {:ok, nodes} <- do_find_historical_nodes(key, hash, num, back, info) do
       {:ok, Enum.reverse(nodes)}
@@ -179,10 +221,10 @@ defmodule ExHashRing.Ring do
   Finds the specificed number of nodes responsible for the given key by looking at each generation
   in the ring's configured depth.  See `find_stable_nodes/4` for more information.
   """
-  @spec find_stable_nodes(name(), key(), num :: non_neg_integer()) ::
+  @spec find_stable_nodes(ring(), key(), num :: non_neg_integer()) ::
           {:ok, [Node.name()]} | {:error, atom}
-  def find_stable_nodes(name, key, num) do
-    with {:ok, {_table, depth, _sizes, _generation, _overrides} = info} <- Info.get(name),
+  def find_stable_nodes(ring, key, num) do
+    with {:ok, {_table, depth, _sizes, _generation, _overrides} = info} <- Info.get(ring),
          hash = Hash.of(key),
          {:ok, nodes} <- do_find_stable_nodes(key, hash, num, depth, info) do
       {:ok, Enum.reverse(nodes)}
@@ -195,10 +237,10 @@ defmodule ExHashRing.Ring do
   `back` * `num`; where `num` = number of nodes requested, and `back` = the number of generations
   to consider.
   """
-  @spec find_stable_nodes(name(), key(), num :: non_neg_integer(), back :: pos_integer()) ::
+  @spec find_stable_nodes(ring(), key(), num :: non_neg_integer(), back :: pos_integer()) ::
           {:ok, [Node.name()]} | {:error, atom}
-  def find_stable_nodes(name, key, num, back) do
-    with {:ok, info} <- Info.get(name),
+  def find_stable_nodes(ring, key, num, back) do
+    with {:ok, info} <- Info.get(ring),
          hash = Hash.of(key),
          {:ok, nodes} <- do_find_stable_nodes(key, hash, num, back, info) do
       {:ok, Enum.reverse(nodes)}
@@ -209,26 +251,26 @@ defmodule ExHashRing.Ring do
   Forces a garbage collection of any generations that are pending garbage collection. Returns the
   generations that were collected.
   """
-  @spec force_gc(name()) :: {:ok, [generation()]}
-  def force_gc(name) do
-    GenServer.call(name, :force_gc)
+  @spec force_gc(ring()) :: {:ok, [generation()]}
+  def force_gc(ring) do
+    GenServer.call(ring, :force_gc)
   end
 
   @doc """
   Forces a garbage collection of a specific generation, the generation must be pending or else
   `{:error, :not_pending}` is returned.
   """
-  @spec force_gc(name(), generation()) :: :ok | {:error, :not_pending}
-  def force_gc(name, generation) do
-    GenServer.call(name, {:force_gc, generation})
+  @spec force_gc(ring(), generation()) :: :ok | {:error, :not_pending}
+  def force_gc(ring, generation) do
+    GenServer.call(ring, {:force_gc, generation})
   end
 
   @doc """
   Get the current ring generation
   """
-  @spec get_generation(name()) :: {:ok, generation()} | :error
-  def get_generation(name) do
-    with {:ok, {_table, _depth, _sizes, generation, _overrides}} <- Info.get(name) do
+  @spec get_generation(ring()) :: {:ok, generation()} | :error
+  def get_generation(ring) do
+    with {:ok, {_table, _depth, _sizes, generation, _overrides}} <- Info.get(ring) do
       {:ok, generation}
     end
   end
@@ -236,39 +278,39 @@ defmodule ExHashRing.Ring do
   @doc """
   Retrieves the current set of node names from the ring.
   """
-  @spec get_nodes(name()) :: {:ok, [Node.name()]}
-  def get_nodes(name) do
-    GenServer.call(name, :get_nodes)
+  @spec get_nodes(ring()) :: {:ok, [Node.name()]}
+  def get_nodes(ring) do
+    GenServer.call(ring, :get_nodes)
   end
 
   @doc """
   Retrieves the current set of nodes as tuples of {name, replicas} from the ring.
   """
-  @spec get_nodes_with_replicas(name()) :: {:ok, [Node.t()]}
-  def get_nodes_with_replicas(name) do
-    GenServer.call(name, :get_nodes_with_replicas)
+  @spec get_nodes_with_replicas(ring()) :: {:ok, [Node.t()]}
+  def get_nodes_with_replicas(ring) do
+    GenServer.call(ring, :get_nodes_with_replicas)
   end
 
   @doc """
   Retrieves the current set of overrides from the ring.
   """
-  @spec get_overrides(name()) :: {:ok, overrides()}
-  def get_overrides(name) do
-    GenServer.call(name, :get_overrides)
+  @spec get_overrides(ring()) :: {:ok, overrides()}
+  def get_overrides(ring) do
+    GenServer.call(ring, :get_overrides)
   end
 
   @doc """
   Retrieves a list of pending gc generations.
   """
-  @spec get_pending_gcs(name()) :: {:ok, [generation()]}
-  def get_pending_gcs(name) do
-    GenServer.call(name, :get_pending_gcs)
+  @spec get_pending_gcs(ring()) :: {:ok, [generation()]}
+  def get_pending_gcs(ring) do
+    GenServer.call(ring, :get_pending_gcs)
   end
 
   @doc """
   Stops the GenServer holding the Ring.
   """
-  @spec stop(name :: atom()) :: :ok
+  @spec stop(ring()) :: :ok
   def stop(name) do
     GenServer.stop(name)
   end
@@ -276,58 +318,39 @@ defmodule ExHashRing.Ring do
   @doc """
   Removes a node from the ring by its name.
   """
-  @spec remove_node(name(), Node.name()) :: {:ok, [Node.t()]} | {:error, :node_not_exists}
-  def remove_node(name, node_name) do
-    GenServer.call(name, {:remove_nodes, [node_name]})
+  @spec remove_node(ring(), name :: Node.name()) :: {:ok, [Node.t()]} | {:error, :node_not_exists}
+  def remove_node(ring, name) do
+    GenServer.call(ring, {:remove_nodes, [name]})
   end
 
   @doc """
   Atomically remove multiple nodes from the ring by name
   """
-  @spec remove_nodes(name(), [Node.name()]) :: {:ok, [Node.t()]} | {:error, :node_not_exists}
-  def remove_nodes(name, node_names) do
-    GenServer.call(name, {:remove_nodes, node_names})
+  @spec remove_nodes(ring(), names :: [Node.name()]) :: {:ok, [Node.t()]} | {:error, :node_not_exists}
+  def remove_nodes(ring, names) do
+    GenServer.call(ring, {:remove_nodes, names})
   end
 
   @doc """
   Replaces the nodes in the ring with a new set of nodes.
   """
-  @spec set_nodes(name(), [Node.definition()]) :: {:ok, [Node.t()]}
-  def set_nodes(name, node_names) do
-    GenServer.call(name, {:set_nodes, node_names})
+  @spec set_nodes(ring(), nodes :: [Node.definition()]) :: {:ok, [Node.t()]}
+  def set_nodes(ring, nodes) do
+    GenServer.call(ring, {:set_nodes, nodes})
   end
 
   @doc """
   Replaces the overrides in the ring with new overrides.
   """
-  @spec set_overrides(name(), overrides()) :: {:ok, overrides()}
-  def set_overrides(name, overrides) do
-    GenServer.call(name, {:set_overrides, overrides})
-  end
-
-  @doc """
-  Schedulers a generation for garbage collection.
-
-  Any generation less than or equal to the initial generation (generation 0) is ignored.
-  """
-  @spec schedule_gc(state :: t(), generation()) :: t()
-  def schedule_gc(%__MODULE__{} = state, generation) when generation <= 0 do
-    state
-  end
-
-  def schedule_gc(%__MODULE__{} = state, generation) do
-    pending_gcs =
-      Map.put_new_lazy(state.pending_gcs, generation, fn ->
-        Process.send_after(self(), {:gc, generation}, Configuration.get_gc_delay())
-      end)
-
-    %__MODULE__{state | pending_gcs: pending_gcs}
+  @spec set_overrides(ring(), overrides()) :: {:ok, overrides()}
+  def set_overrides(ring, overrides) do
+    GenServer.call(ring, {:set_overrides, overrides})
   end
 
   ## Server
 
-  @spec init({name(), options :: Keyword.t()}) :: {:ok, t()}
-  def init({name, options}) do
+  @spec init(options()) :: {:ok, t()}
+  def init(options) do
     table =
       :ets.new(:ring, [
         :protected,
@@ -337,7 +360,6 @@ defmodule ExHashRing.Ring do
 
     state = %__MODULE__{
       depth: options[:depth],
-      name: name,
       table: table,
       replicas: options[:replicas]
     }
@@ -404,7 +426,7 @@ defmodule ExHashRing.Ring do
   end
 
   def handle_call(:get_nodes, _from, %{nodes: nodes} = state) do
-    nodes = for {node_name, _} <- nodes, do: node_name
+    nodes = for {name, _} <- nodes, do: name
     {:reply, {:ok, nodes}, state}
   end
 
@@ -416,16 +438,16 @@ defmodule ExHashRing.Ring do
     {:reply, {:ok, Map.keys(state.pending_gcs)}, state}
   end
 
-  def handle_call({:remove_nodes, node_names}, _from, %__MODULE__{} = state) do
+  def handle_call({:remove_nodes, names}, _from, %__MODULE__{} = state) do
     has_unknown_nodes? =
-      Enum.any?(node_names, fn name ->
+      Enum.any?(names, fn name ->
         not has_node_with_name?(state.nodes, name)
       end)
 
     if has_unknown_nodes? do
       {:reply, {:error, :node_not_exists}, state}
     else
-      nodes = Enum.reject(state.nodes, fn {name, _} -> name in node_names end)
+      nodes = Enum.reject(state.nodes, fn {name, _} -> name in names end)
       {:reply, {:ok, nodes}, update_nodes(state, nodes)}
     end
   end
@@ -617,6 +639,20 @@ defmodule ExHashRing.Ring do
     Enum.any?(nodes, &match?({^name, _}, &1))
   end
 
+  @spec schedule_gc(state :: t(), generation()) :: t()
+  defp schedule_gc(%__MODULE__{} = state, generation) when generation <= 0 do
+    state
+  end
+
+  defp schedule_gc(%__MODULE__{} = state, generation) do
+    pending_gcs =
+      Map.put_new_lazy(state.pending_gcs, generation, fn ->
+        Process.send_after(self(), {:gc, generation}, Configuration.get_gc_delay())
+      end)
+
+    %__MODULE__{state | pending_gcs: pending_gcs}
+  end
+
   @spec update_nodes(state :: t(), nodes :: [Node.t()]) :: t()
   defp update_nodes(%__MODULE__{} = state, nodes) do
     next_generation = state.generation + 1
@@ -647,7 +683,7 @@ defmodule ExHashRing.Ring do
       state.overrides
     }
 
-    Info.set(state.name, self(), entry)
+    Info.set(self(), entry)
 
     # Schedule the stale generation for cleanup
     state = schedule_gc(state, next_generation - state.depth)
@@ -669,8 +705,8 @@ defmodule ExHashRing.Ring do
       end)
 
     # Update the current information
-    {:ok, {table, depth, sizes, generation, _overrides}} = Info.get(state.name)
-    Info.set(state.name, self(), {table, depth, sizes, generation, overrides})
+    {:ok, {table, depth, sizes, generation, _overrides}} = Info.get(self())
+    Info.set(self(), {table, depth, sizes, generation, overrides})
 
     # Update and return the state
     %__MODULE__{state | overrides: overrides}

@@ -10,8 +10,8 @@ defmodule ExHashRing.Ring.FindNode.Test do
         name = :"ExHashRing.Ring.FindNode.Test.Replicas.#{replicas}"
 
         {:ok, _pid} =
-          Ring.start_link(name,
-            named: true,
+          Ring.start_link(
+            name: name,
             nodes: Harness.nodes(),
             replicas: replicas
           )
@@ -62,8 +62,8 @@ defmodule ExHashRing.Ring.Overrides.Test do
         name = :"ExHashRing.Ring.Overrides.Test.Replicas.#{replicas}"
 
         {:ok, _pid} =
-          Ring.start_link(name,
-            named: true,
+          Ring.start_link(
+            name: name,
             nodes: Harness.nodes(),
             replicas: replicas
           )
@@ -119,7 +119,7 @@ defmodule ExHashRing.Ring.Operations.Test do
 
   setup do
     name = :"ExHashRing.Ring.Operations.Test.#{:erlang.unique_integer([:positive])}"
-    {:ok, _pid} = Ring.start_link(name, nodes: @nodes, named: true)
+    {:ok, _pid} = Ring.start_link(name: name, nodes: @nodes)
 
     [name: name]
   end
@@ -520,14 +520,20 @@ defmodule ExHashRing.Ring.Operations.Test do
     assert Ring.find_nodes(HashRingEtsTest.DoesNotExist, 1, 2) == {:error, :no_ring}
   end
 
-  test "ExHashRing.HashRing.ETS.start_link/1" do
-    {:ok, _pid} = Ring.start_link(TestModule.Foo, nodes: @nodes)
-    assert Ring.find_node(TestModule.Foo, 1) == {:ok, "c"}
-    assert Process.whereis(TestModule.Foo) == nil
+  test "ExHashRing.Ring.start_link/1 unnamed" do
+    {:ok, ring} = Ring.start_link(nodes: @nodes)
+    assert Ring.find_node(ring, 1) == {:ok, "c"}
+    assert Process.info(ring, :registered_name) == {:registered_name, []}
+  end
+
+  test "ExHashRing.Ring.start_link/1 named" do
+    {:ok, pid} = Ring.start_link(name: HashRingETSTest.Named, nodes: @nodes)
+    assert Ring.find_node(HashRingETSTest.Named, 1) == {:ok, "c"}
+    assert Process.whereis(HashRingETSTest.Named) == pid
   end
 
   test "operations on empty ring fail" do
-    {:ok, _pid} = Ring.start_link(HashRingETSTest.Empty, nodes: [])
+    {:ok, _pid} = Ring.start_link(name: HashRingETSTest.Empty, nodes: [])
     assert Ring.find_node(HashRingETSTest.Empty, 1) == {:error, :invalid_ring}
     assert Ring.find_nodes(HashRingETSTest.Empty, 1, 2) == {:error, :invalid_ring}
   end
@@ -535,7 +541,7 @@ defmodule ExHashRing.Ring.Operations.Test do
   test "find_historical_nodes" do
     name = HashRingETSTest.Previous
 
-    {:ok, _pid} = Ring.start_link(name, depth: 2, nodes: @nodes, named: true)
+    {:ok, _pid} = Ring.start_link(depth: 2, name: name, nodes: @nodes)
 
     {:ok, previous_generation} = Ring.get_generation(name)
 
@@ -568,7 +574,7 @@ defmodule ExHashRing.Ring.Operations.Test do
     test "resolves expected nodes when depth 2" do
       name = ExHashRing.Ring.Test.Stable.Depth2
 
-      {:ok, _pid} = Ring.start_link(name, depth: 2, nodes: @nodes, named: true)
+      {:ok, _pid} = Ring.start_link(depth: 2, name: name, nodes: @nodes)
 
       {:ok, first_generation} = Ring.get_generation(name)
 
@@ -609,7 +615,7 @@ defmodule ExHashRing.Ring.Operations.Test do
     test "resolves expected nodes when depth 3" do
       name = ExHashRing.Ring.Test.Stable.Depth3
 
-      {:ok, _pid} = Ring.start_link(name, depth: 3, nodes: @nodes, named: true)
+      {:ok, _pid} = Ring.start_link(depth: 3, name: name, nodes: @nodes)
 
       {:ok, first_generation} = Ring.get_generation(name)
 
@@ -678,7 +684,7 @@ defmodule ExHashRing.Ring.Operations.Test do
       second_generation_nodes = Enum.map(101..200, &"node-#{&1}")
       third_generation_nodes = Enum.map(201..300, &"node-#{&1}")
 
-      {:ok, _pid} = Ring.start_link(name, depth: 3, nodes: first_generation_nodes, named: true)
+      {:ok, _pid} = Ring.start_link(depth: 3, name: name, nodes: first_generation_nodes)
 
       {:ok, first_nodes} = Ring.find_nodes(name, 1, 3)
 
@@ -708,7 +714,7 @@ defmodule ExHashRing.Ring.Operations.Test do
       second_generation_nodes = Enum.map(101..200, &"node-#{&1}")
       third_generation_nodes = Enum.map(201..300, &"node-#{&1}")
 
-      {:ok, _pid} = Ring.start_link(name, depth: 2, nodes: first_generation_nodes, named: true)
+      {:ok, _pid} = Ring.start_link(depth: 2, name: name, nodes: first_generation_nodes)
 
       {:ok, first_nodes} = Ring.find_nodes(name, target, 3)
 
@@ -739,7 +745,7 @@ defmodule ExHashRing.Ring.Operations.Test do
       name = ExHashRing.Ring.Test.Stable.AllMissing
 
       # Start with an empty generation
-      {:ok, _} = Ring.start_link(name, depth: 2, named: true)
+      {:ok, _} = Ring.start_link(depth: 2, name: name)
 
       # Empty generations are considered invalid for standard lookup
       {:error, :invalid_ring} = Ring.find_nodes(name, 1, 3)
@@ -754,7 +760,7 @@ defmodule ExHashRing.Ring.Operations.Test do
       name = ExHashRing.Ring.Test.Stable.Mixed
 
       # Start with an empty generation
-      {:ok, _} = Ring.start_link(name, depth: 2, named: true)
+      {:ok, _} = Ring.start_link(depth: 2, name: name)
 
       # Empty generations are considered invalid for standard lookup
       {:error, :invalid_ring} = Ring.find_nodes(name, 1, 3)
@@ -775,7 +781,7 @@ defmodule ExHashRing.Ring.Operations.Test do
       name = ExHashRing.Ring.Test.Stable.PartialEmpty
 
       # Start with an empty generation
-      {:ok, _} = Ring.start_link(name, depth: 2, named: true)
+      {:ok, _} = Ring.start_link(depth: 2, name: name)
 
       # Empty generations are considered invalid for standard lookup
       {:error, :invalid_ring} = Ring.find_nodes(name, 1, 3)
@@ -788,7 +794,7 @@ defmodule ExHashRing.Ring.Operations.Test do
       name = ExHashRing.Ring.Test.Stable.PartialPopulated
 
       # Start with a populated generation
-      {:ok, _} = Ring.start_link(name, depth: 2, named: true, nodes: @nodes)
+      {:ok, _} = Ring.start_link(depth: 2, name: name, nodes: @nodes)
 
       # Perform a standard lookup
       {:ok, expected_nodes} = Ring.find_nodes(name, 1, 3)
@@ -803,7 +809,7 @@ defmodule ExHashRing.Ring.Operations.Test do
       name = ExHashRing.Ring.Test.Stable.PartialMixed
 
       # Start with an populated generation
-      {:ok, _} = Ring.start_link(name, depth: 3, named: true, nodes: @nodes)
+      {:ok, _} = Ring.start_link(depth: 3, name: name, nodes: @nodes)
 
       # Perform a standard lookup, this one will return nodes from the ones that were seeded
       {:ok, expected_nodes} = Ring.find_nodes(name, 1, 3)
@@ -824,7 +830,7 @@ defmodule ExHashRing.Ring.Operations.Test do
   describe "garbage collection scheduling" do
     test "schedules the correct generation when depth is 1" do
       name = :"ExHashRing.Ring.Test.GC.Schedule.1"
-      {:ok, _} = Ring.start_link(name, depth: 1, named: true, nodes: ["a", "b", "c"])
+      {:ok, _} = Ring.start_link(depth: 1, name: name, nodes: ["a", "b", "c"])
 
       assert {:ok, 1} = Ring.get_generation(name)
       assert {:ok, []} = Ring.get_pending_gcs(name)
@@ -844,7 +850,7 @@ defmodule ExHashRing.Ring.Operations.Test do
 
     test "schedules the correct generation when depth is 2" do
       name = :"ExHashRing.Ring.Test.GC.Schedule.2"
-      {:ok, _} = Ring.start_link(name, depth: 2, named: true, nodes: ["a", "b", "c"])
+      {:ok, _} = Ring.start_link(depth: 2, name: name, nodes: ["a", "b", "c"])
 
       assert {:ok, 1} = Ring.get_generation(name)
       assert {:ok, []} = Ring.get_pending_gcs(name)
@@ -870,7 +876,7 @@ defmodule ExHashRing.Ring.Operations.Test do
 
     test "schedules the correct generation when depth is 3" do
       name = :"ExHashRing.Ring.Test.GC.Schedule.3"
-      {:ok, _} = Ring.start_link(name, depth: 3, named: true, nodes: ["a", "b", "c"])
+      {:ok, _} = Ring.start_link(depth: 3, name: name, nodes: ["a", "b", "c"])
 
       assert {:ok, 1} = Ring.get_generation(name)
       assert {:ok, []} = Ring.get_pending_gcs(name)

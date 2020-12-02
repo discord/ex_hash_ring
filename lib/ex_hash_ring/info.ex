@@ -10,12 +10,10 @@ defmodule ExHashRing.Info do
 
   alias ExHashRing.Ring
 
-  @type t :: %__MODULE__{}
-
   @typedoc """
-  For any ring name information can be looked up that will provide an entry containing specifics
-  about the table holding the ring data, the configured history depth, sizes for each generation
-  in the history, the current generation, and any overrides that should be applied during lookup.
+  For any ring information can be looked up that will provide an entry containing specifics about
+  the table holding the ring data, the configured history depth, sizes for each generation in the
+  history, the current generation, and any overrides that should be applied during lookup.
   """
   @type entry :: {
           table :: :ets.tid(),
@@ -25,7 +23,11 @@ defmodule ExHashRing.Info do
           overrides :: Ring.overrides()
         }
 
+  @type t :: %__MODULE__{
+    monitored_pids: %{pid() => reference()}
+  }
   defstruct monitored_pids: %{}
+
 
   ## Client
 
@@ -38,9 +40,20 @@ defmodule ExHashRing.Info do
   Retrieves the info entry for the specified ring.
   """
   @spec get(name :: Ring.name()) :: {:ok, entry()} | {:error, :no_ring}
-  def get(name) do
-    case :ets.lookup(__MODULE__, name) do
-      [{^name, entry}] ->
+  def get(name) when is_atom(name) do
+    case Process.whereis(name) do
+      nil ->
+        {:error, :no_ring}
+
+      pid ->
+        get(pid)
+    end
+  end
+
+  @spec get(pid()) :: {:ok, entry()} | {:error, :no_ring}
+  def get(pid) when is_pid(pid) do
+    case :ets.lookup(__MODULE__, pid) do
+      [{^pid, entry}] ->
         {:ok, entry}
 
       _ ->
@@ -51,9 +64,20 @@ defmodule ExHashRing.Info do
   @doc """
   Sets the info entry for the specified ring.
   """
-  @spec set(name :: Ring.name(), owner_pid :: pid(), entry()) :: :ok
-  def set(name, owner_pid, entry) do
-    GenServer.call(__MODULE__, {:set, name, owner_pid, entry})
+  @spec set(name :: Ring.name(), entry()) :: :ok | {:error, :no_ring}
+  def set(name, entry) when is_atom(name) do
+    case Process.whereis(name) do
+      nil ->
+        {:error, :no_ring}
+
+      pid ->
+        set(pid, entry)
+    end
+  end
+
+  @spec set(pid(), entry()) :: :ok
+  def set(pid, entry) when is_pid(pid) do
+    GenServer.call(__MODULE__, {:set, pid, entry})
   end
 
   ## Server
@@ -70,9 +94,9 @@ defmodule ExHashRing.Info do
     {:ok, %__MODULE__{}}
   end
 
-  def handle_call({:set, name, owner_pid, entry}, _from, state) do
-    state = monitor_ring(state, name, owner_pid)
-    true = :ets.insert(__MODULE__, {name, entry})
+  def handle_call({:set, pid, entry}, _from, state) do
+    state = monitor_ring(state, pid)
+    true = :ets.insert(__MODULE__, {pid, entry})
     {:reply, :ok, state}
   end
 
@@ -82,8 +106,8 @@ defmodule ExHashRing.Info do
         {nil, monitored_pids} ->
           monitored_pids
 
-        {{^monitor_ref, name}, monitored_pids} ->
-          :ets.delete(__MODULE__, name)
+        {^monitor_ref, monitored_pids} ->
+          :ets.delete(__MODULE__, pid)
           monitored_pids
       end
 
@@ -92,12 +116,11 @@ defmodule ExHashRing.Info do
 
   ## Private
 
-  @spec monitor_ring(state :: t(), name :: Ring.name(), owner_pid :: pid()) :: t()
-  defp monitor_ring(%__MODULE__{} = state, name, owner_pid) do
+  @spec monitor_ring(state :: t(), pid()) :: t()
+  defp monitor_ring(%__MODULE__{} = state, pid) do
     monitored_pids =
-      Map.put_new_lazy(state.monitored_pids, owner_pid, fn ->
-        monitor_ref = Process.monitor(owner_pid)
-        {monitor_ref, name}
+      Map.put_new_lazy(state.monitored_pids, pid, fn ->
+        Process.monitor(pid)
       end)
 
     %__MODULE__{state | monitored_pids: monitored_pids}
