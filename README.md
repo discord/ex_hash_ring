@@ -1,63 +1,83 @@
-# Hash Ring
+# ExHashRing
 
-[![Master](https://travis-ci.org/discordapp/ex_hash_ring.svg?branch=master)](https://travis-ci.org/discordapp/ex_hash_ring)
+[![Master](https://travis-ci.org/discord/ex_hash_ring.svg?branch=master)](https://travis-ci.org/discord/ex_hash_ring)
 [![Hex.pm Version](http://img.shields.io/hexpm/v/ex_hash_ring.svg?style=flat)](https://hex.pm/packages/ex_hash_ring)
 
-A pure Elixir consistent hash ring implemention based on the excellent [C hash-ring lib](https://github.com/chrismoos/hash-ring)
-by [Chris Moos](https://github.com/chrismoos).
+A pure Elixir consistent hash ring implemention based on the excellent [C hash-ring lib](https://github.com/chrismoos/hash-ring) by [Chris Moos](https://github.com/chrismoos).
 
-The hashring provides fast lookup, but ring creation isn't optimized (though it's not slow). It deliberately does not provide encapsulation
-within a `GenServer` and leaves that up to the user. At [Discord](https://discordapp.com) we found using a `GenServer` for such
-frequently accessed data proved to be overwhelming so we rewrote the hash ring in pure Elixir and paired it with
-[FastGlobal](https://github.com/discordapp/fastglobal) to allow the calling process to use it's CPU time to interact with
-the hash ring and therefore avoiding overloading a central GenServer.
+ExHashRing is a production ready library actively maintained and in use at [Discord](https://discord.com).
 
-## Usage
+ExHashRing provides the following features.
+
+- Lookup optimized ring storage. A ring is stored in an [ETS table](https://erlang.org/doc/man/ets.html) which provides excellent lookup performance.
+- Key overrides that allow the client to pin a key to a member.
+- Configurable replica count for virtual nodes.
+- Configurable history that allows for stable lookups over time.
+
+## Installation
 
 Add it to `mix.exs`.
 
 ```elixir
 defp deps do
-  [{:ex_hash_ring, "~> 3.0"}]
+  [{:ex_hash_ring, "~> 6.0"}]
 end
 ```
 
-Create a new HashRing.
+## Upgrading to 6.0.0
+
+Version 6.0.0 introduces a number of breaking changes.  Refer to the [Upgrade Guide](/pages/upgrade.md) for instructions.
+
+## Quickstart
+
+Each Ring is managed by a GenServer, here's an example of starting an empty Ring.
 
 ```elixir
-alias ExHashRing.HashRing
-
-ring = HashRing.new
-{:ok, ring} = HashRing.add_node(ring, "a")
-{:ok, ring} = HashRing.add_node(ring, "b")
+iex(1)> alias ExHashRing.Ring
+ExHashRing.Ring
+iex(2)> {:ok, ring} = Ring.start_link()
+{:ok, #PID<0.166.0>}
 ```
 
-Find the node for a key.
+We can add a single node with `add_node/2`
 
 ```elixir
-"a" = HashRing.find_node(ring, "key1")
-"b" = HashRing.find_node(ring, "key3")
+iex(3)> Ring.add_node(ring, "a")
+{:ok, [{"a", 512}]}
 ```
 
-Additionally, you can also use `ExHashRing.HashRing.ETS`, which holds the ring in an ETS table for fast access, if you need
-the ring across multiple processes.
+The `512` above is the number of replicas for this node.  Since we did not specify a custom number of replicas, it was added with the default for this Ring, which itself defaults to `512`.  We can control the number of default replicas when we start_link the Ring and we can control the number of replicas on a per-node basis.
 
+We can add another node with a custom replica count with `add_node/3`
 
 ```elixir
-{:ok, pid} = HashRing.ETS.start_link(TheRing)
-{:ok, _nodes} = HashRing.ETS.add_node(pid, "a")
-{:ok, _nodes} = HashRing.ETS.add_node(pid, "b")
+iex(4)> Ring.add_node(ring, "b", 100)
+{:ok, [{"b", 100}, {"a", 512}]}
 ```
 
-And then find a node for a key, using the ETS name provided:
+Now that we have some nodes we can use our Ring to map keys to nodes with the `find_node/2` function.
 
 ```elixir
-"a" = HashRing.ETS.find_node(TheRing, "key1")
-"b" = HashRing.ETS.find_node(TheRing, "key3")
+iex(5)> Ring.find_node(ring, "key1")
+{:ok, "a"}
+iex(6)> Ring.find_node(ring, "key37")
+{:ok, "b"}
 ```
 
+## Documentation
+
+The Quickstart above just scratches the surface of the functionality that ExHashRing provides.  For more details see the [HexDocs](https://hexdocs.pm/ex_hash_ring)
+
+## Configuration
+
+ExHashRing exposes some configuration options under the `:ex_hash_ring` key.
+
+| Key         | Description                                                                              | Default |
+|-------------|------------------------------------------------------------------------------------------|---------|
+| `:depth`    | Default history depth for new rings                                                      | 1       |
+| `:gc_delay` | The amount of time, in milliseconds, to wait before garbage collecting stale generations | 10_000  |
+| `:replicas` | Default replicas setting for new rings                                                   | 512     |
 
 ## License
 
-Hash Ring is released under [the MIT License](LICENSE).
-Check [LICENSE](LICENSE) file for more information.
+Hash Ring is released under [the MIT License](LICENSE). Check [LICENSE](LICENSE) file for more information.

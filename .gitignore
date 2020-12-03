@@ -3,6 +3,7 @@
 /bench/snapshots
 /cover
 /deps
+/doc
 erl_crash.dump
 *.ez
 .DS_Store

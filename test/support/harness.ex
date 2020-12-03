@@ -1,4 +1,4 @@
-defmodule HashRingTest.Support.Harness do
+defmodule ExHashRing.Support.Harness do
   def num, do: 3
 
   def nodes, do: ["20815a02b69b16bb", "b1503d07bcfdb1a8", "95f0a668b4710b20", "d34c19fba0dc8b69"]

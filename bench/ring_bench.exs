@@ -1,14 +1,14 @@
-defmodule ETSHashRingBench do
+defmodule ExHashRing.Ring.Benchmark do
   use Benchfella
-  alias ExHashRing.HashRing.ETS, as: Ring
+  alias ExHashRing.{Info, Ring}
 
-  @name HashRingBench.ETSRing
+  @name ExHashRing.Ring.Benchmark.Ring
   @nodes ["hash-ring-1-1", "hash-ring-1-2", "hash-ring-1-3", "hash-ring-1-4"]
   @replicas 512
-  @overrides %{"1234254543" => 1}
+  @overrides %{"1234254543" => [1]}
 
   setup_all do
-    Ring.Config.start_link()
+    Info.start_link()
     {:ok, nil}
   end
 
@@ -61,6 +61,24 @@ defmodule ETSHashRingBench do
     :ok
   end
 
+  bench "find_stable_nodes(num: 2)", ring: new_ring_with_previous(@overrides) do
+    Ring.find_stable_nodes(ring, "0", 2)
+    :ok
+  end
+
+  bench "find_stable_nodes(num: 3)", ring: new_ring_with_previous(@overrides) do
+    Ring.find_stable_nodes(ring, "0", 3)
+    :ok
+  end
+
+  bench "find_stable_nodes(num: 2, depth: 2)", ring: new_ring_with_previous(@overrides) do
+    Ring.find_stable_nodes(ring, "0", 2, 2)
+  end
+
+  bench "find_stable_nodes(num: 3, depth: 2)", ring: new_ring_with_previous(@overrides) do
+    Ring.find_stable_nodes(ring, "0", 3, 2)
+  end
+
   bench "regenerate ring & gc", ring: new_ring() do
     Ring.set_nodes(ring, @nodes)
     Ring.force_gc(ring)
@@ -69,12 +87,29 @@ defmodule ETSHashRingBench do
 
   defp new_ring(overrides \\ %{}) do
     {:ok, _} =
-      Ring.start_link(@name,
+      Ring.start_link(
+        name: @name,
         nodes: @nodes,
-        num_replicas: @replicas,
         overrides: overrides,
-        named: true
+        replicas: @replicas
       )
+
+    @name
+  end
+
+  defp new_ring_with_previous(overrides \\ %{}) do
+    original_nodes = Enum.slice(@nodes, 0, 2)
+
+    {:ok, _} =
+      Ring.start_link(
+        depth: 2,
+        name: @name,
+        nodes: original_nodes,
+        replicas: @replicas,
+        overrides: overrides
+      )
+
+    Ring.set_nodes(@name, @nodes)
 
     @name
   end
