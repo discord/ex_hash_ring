@@ -51,6 +51,63 @@ In existing code any place where `ExHashRing.HashRing` was being used should be 
 
 In existing code any plat where `ExHashRing.HashRing.ETS` was being used can use the `ExHashRing.Ring` module as a mostly drop in replacement.
 
+#### `start_link/2` -> `start_link/1`
+
+Pre-6.0.0 every ring had to be named and then optionally the process could be registered.  This could result in some very confusing issues when using unregistered rings becuase the ring names are required to be unique.  Consider the following code and keep in mind that during an iex session it's obvious what is happening, but with supervisors restarting processes the unintuitive behavior can be far away from the start_link calls.
+
+```elixir
+iex(1)> {:ok, first} = ExHashRing.HashRing.ETS.start_link(:example, nodes: ["a", "b"])
+{:ok, #PID<0.165.0>}
+iex(2)> ExHashRing.HashRing.ETS.find_node(:example, "key1")
+{:ok, "a"}
+iex(3)> {:ok, second} = ExHashRing.HashRing.ETS.start_link(:example, nodes: ["c", "d"])
+{:ok, #PID<0.168.0>}
+iex(4)> ExHashRing.HashRing.ETS.find_node(:example, "key1")
+{:ok, "c"}
+iex(5)> Process.alive?(first)
+true
+iex(6)> Process.alive?(second)
+true
+iex(7)> ExHashRing.HashRing.ETS.add_node(first, "f")
+{:ok, [{"f", 512}, {"a", 512}, {"b", 512}]}
+iex(8)> ExHashRing.HashRing.ETS.add_node(second, "g")
+{:ok, [{"g", 512}, {"c", 512}, {"d", 512}]}
+iex(9)> ExHashRing.HashRing.ETS.add_node(:example, "h")
+** (exit) exited in: GenServer.call(:example, {:add_node, "h", nil}, 5000)
+    ** (EXIT) no process: the process is not alive or there's no process currently associated with the given name, possibly because its application isn't started
+    (elixir) lib/gen_server.ex:914: GenServer.call/3
+```
+
+The conflict occurs because the ring's name is used as the global configuration key.  Since the processes don't attempt to register the conflict is never detected and two processes can happily coexists with whoever writes last win semantics.
+
+Pre-6.0.0 when the caller was required to pass the ring's name atom vs when they could provide the ring's pid was fairly inconsistent.
+
+| function                  | Ring `named: false` | Ring `named: true` |
+|---------------------------|---------------------|--------------------|
+| add_node/2,3              | pid                 | pid OR name        |
+| find_node/2               | name                | name               |
+| find_nodes/3              | name                | name               |
+| force_gc/1,2              | pid                 | pid OR name        |
+| get_overrides/1           | pid                 | pid OR name        |
+| get_nodes/1               | pid                 | pid OR name        |
+| get_nodes_with_replicas/1 | pid                 | pid OR name        |
+| get_ring_gen/1            | name                | name               |
+| remove_node/2             | pid                 | pid OR name        |
+| set_nodes/2               | pid                 | pid OR name        |
+| set_overrides/2           | pid                 | pid OR name        |
+| stop/1                    | pid                 | pid OR name        |
+
+6.0.0 allows the caller to create either named rings (via the `name` option) or unnamed rings.  Both named and unnamed rings can be operated on via their pid.  Named rings can also be operated on by their name.  The equivalent table in 6.0.0 would look like this.
+
+| function                  | Unnamed Ring | Named Ring  |
+|---------------------------|--------------|-------------|
+| any function              | pid          | pid OR name |
+
+#### Naming and Registering
+
+Pre-6.0.0 every ring was required to have a name and the `:named` option was a boolean that would control whether or not the ring's process registered under that name as well.  This meant that `start_link/2` has a single required argument, the name, and an optional argument, a Keyword of options.
+
+6.0.0 no longer requires that every ring be named, unnamed rings can be operated on entirely through their pid alone.  Naming a ring now requires that the process also register under that name to prevent ring collisions.  To create a named ring use the `:name` option which accepts an atom to name the ring and its process after.
 #### New Options for `start_link/2`
 
 `start_link/2` has gained a new option, `:depth` which controls how many generations of history the ring should retain.
@@ -59,6 +116,7 @@ In existing code any plat where `ExHashRing.HashRing.ETS` was being used can use
 
 The option `:default_num_replicas` was renamed to `:replicas`.
 
+The option `:named` was renamed to `:name` and accepts the name directly instead of a boolean, see the Naming and Registering section for more details.
 #### Renamed `get_ring_gen/1`
 
 Since a Generation is now a more important concepts in the library this function was renamed from `get_ring_gen/1` to `get_generation/1`.
