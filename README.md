@@ -1,7 +1,9 @@
 # ExHashRing
 
-[![Master](https://travis-ci.org/discord/ex_hash_ring.svg?branch=master)](https://travis-ci.org/discord/ex_hash_ring)
+[![CI](https://github.com/discord/ex_hash_ring/workflows/CI/badge.svg)](https://github.com/discord/ex_hash_ring/actions)
 [![Hex.pm Version](http://img.shields.io/hexpm/v/ex_hash_ring.svg?style=flat)](https://hex.pm/packages/ex_hash_ring)
+[![Hex.pm License](http://img.shields.io/hexpm/l/ex_hash_ring.svg?style=flat)](https://hex.pm/packages/ex_hash_ring)
+[![HexDocs](https://img.shields.io/badge/HexDocs-Yes-blue)](https://hexdocs.pm/ex_hash_ring)
 
 A pure Elixir consistent hash ring implemention based on the excellent [C hash-ring lib](https://github.com/chrismoos/hash-ring) by [Chris Moos](https://github.com/chrismoos).
 
