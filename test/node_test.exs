@@ -30,6 +30,36 @@ defmodule ExHashRing.Node.Test do
       assert Map.get(counts, "test-node-a") == 2
       assert Map.get(counts, "test-node-b") == 3
     end
+
+    test "zero-replicas are dropped" do
+      nodes = [
+        {"test-node-a", 0},
+        {"test-node-b", 3}
+      ]
+
+      counts =
+        nodes
+        |> Node.expand(5)
+        |> counts()
+
+      refute Map.has_key?(counts, "test-node-a")
+      assert Map.get(counts, "test-node-b") == 3
+    end
+
+    test "negative-replicas are dropped" do
+      nodes = [
+        {"test-node-a", -1},
+        {"test-node-b", 3}
+      ]
+
+      counts =
+        nodes
+        |> Node.expand(5)
+        |> counts()
+
+      refute Map.has_key?(counts, "test-node-a")
+      assert Map.get(counts, "test-node-b") == 3
+    end
   end
 
   describe "expand/2" do
@@ -45,6 +75,36 @@ defmodule ExHashRing.Node.Test do
         |> counts()
 
       assert Map.get(counts, "test-node-a") == 2
+      assert Map.get(counts, "test-node-b") == 3
+    end
+
+    test "handles a list of all Node.t() with zero-replica count (ignores the replicas argument)" do
+      nodes = [
+        {"test-node-a", 0},
+        {"test-node-b", 3}
+      ]
+
+      counts =
+        nodes
+        |> Node.expand(5)
+        |> counts()
+
+      refute Map.has_key?(counts, "test-node-a")
+      assert Map.get(counts, "test-node-b") == 3
+    end
+
+    test "handles a list of all Node.t() with negative-replica count (ignores the replicas argument)" do
+      nodes = [
+        {"test-node-a", -1},
+        {"test-node-b", 3}
+      ]
+
+      counts =
+        nodes
+        |> Node.expand(5)
+        |> counts()
+
+      refute Map.has_key?(counts, "test-node-a")
       assert Map.get(counts, "test-node-b") == 3
     end
 
@@ -77,6 +137,29 @@ defmodule ExHashRing.Node.Test do
       assert Map.get(counts, "test-node-b") == 2
       assert Map.get(counts, "test-node-c") == 5
       assert Map.get(counts, "test-node-d") == 3
+    end
+
+    test "handles a list of mixed Node.t() and Node.name() with zero and negative replicas (ignores replicas argument for Node.t(), uses it for Node.name())" do
+      nodes = [
+        "test-node-a",
+        {"test-node-b", 0},
+        "test-node-c",
+        {"test-node-d", -1},
+        "test-node-e",
+        {"test-node-f", 2}
+      ]
+
+      counts =
+        nodes
+        |> Node.expand(5)
+        |> counts()
+
+      assert Map.get(counts, "test-node-a") == 5
+      refute Map.has_key?(counts, "test-node-b")
+      assert Map.get(counts, "test-node-c") == 5
+      refute Map.has_key?(counts, "test-node-d")
+      assert Map.get(counts, "test-node-e") == 5
+      assert Map.get(counts, "test-node-f") == 2
     end
   end
 

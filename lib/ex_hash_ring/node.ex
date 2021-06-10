@@ -12,6 +12,8 @@ defmodule ExHashRing.Node do
 
   @typedoc """
   Replicas is a count of how many times a Node should be placed into a Ring.
+
+  Replica counts less than 1 are ignored.
   """
   @type replicas :: pos_integer()
 
@@ -76,10 +78,14 @@ defmodule ExHashRing.Node do
   ## Private
 
   @spec do_expand(node :: t, acc :: [virtual()]) :: [virtual()]
-  defp do_expand({name, replicas}, acc) do
+  defp do_expand({name, replicas}, acc) when replicas > 0 do
     Enum.reduce(0..(replicas - 1), acc, fn replica, acc ->
       [{Hash.of("#{name}#{replica}"), name} | acc]
     end)
+  end
+
+  defp do_expand(_, acc) do
+    acc
   end
 
   @spec do_sort([virtual()]) :: [virtual()]
