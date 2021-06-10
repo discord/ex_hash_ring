@@ -13,9 +13,9 @@ defmodule ExHashRing.Node do
   @typedoc """
   Replicas is a count of how many times a Node should be placed into a Ring.
 
-  Replica counts less than 1 are ignored.
+  Negative replica counts will result in an ArgumentError when expanded
   """
-  @type replicas :: pos_integer()
+  @type replicas :: non_neg_integer()
 
   @typedoc """
   Nodes are properly specified as a tuple of their name and their number of replicas
@@ -78,14 +78,18 @@ defmodule ExHashRing.Node do
   ## Private
 
   @spec do_expand(node :: t, acc :: [virtual()]) :: [virtual()]
+  defp do_expand({_name, 0}, acc) do
+    acc
+  end
+
   defp do_expand({name, replicas}, acc) when replicas > 0 do
     Enum.reduce(0..(replicas - 1), acc, fn replica, acc ->
       [{Hash.of("#{name}#{replica}"), name} | acc]
     end)
   end
 
-  defp do_expand(_, acc) do
-    acc
+  defp do_expand({name, replicas}, _) do
+    raise ArgumentError, "#{name} has #{replicas} replicas, replicas must be non-negative"
   end
 
   @spec do_sort([virtual()]) :: [virtual()]
