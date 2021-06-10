@@ -46,19 +46,15 @@ defmodule ExHashRing.Node.Test do
       assert Map.get(counts, "test-node-b") == 3
     end
 
-    test "negative-replicas are dropped" do
+    test "negative-replicas raise" do
       nodes = [
         {"test-node-a", -1},
         {"test-node-b", 3}
       ]
 
-      counts =
-        nodes
-        |> Node.expand(5)
-        |> counts()
-
-      refute Map.has_key?(counts, "test-node-a")
-      assert Map.get(counts, "test-node-b") == 3
+      assert_raise ArgumentError, "test-node-a has -1 replicas, replicas must be non-negative", fn ->
+        Node.expand(nodes, 5)
+      end
     end
   end
 
@@ -93,19 +89,15 @@ defmodule ExHashRing.Node.Test do
       assert Map.get(counts, "test-node-b") == 3
     end
 
-    test "handles a list of all Node.t() with negative-replica count (ignores the replicas argument)" do
+    test "raises on a list of all Node.t() if any have negative-replica count" do
       nodes = [
         {"test-node-a", -1},
         {"test-node-b", 3}
       ]
 
-      counts =
-        nodes
-        |> Node.expand(5)
-        |> counts()
-
-      refute Map.has_key?(counts, "test-node-a")
-      assert Map.get(counts, "test-node-b") == 3
+      assert_raise ArgumentError, "test-node-a has -1 replicas, replicas must be non-negative", fn ->
+        Node.expand(nodes, 5)
+      end
     end
 
     test "handles a list of all Node.name() (creates replicas argument number of virtual nodes)" do
@@ -123,7 +115,7 @@ defmodule ExHashRing.Node.Test do
     test "handles a list of mixed Node.t() and Node.name() (ignores replicas argument for Node.t(), uses it for Node.name())" do
       nodes = [
         "test-node-a",
-        {"test-node-b", 2},
+        {"test-node-b", 0},
         "test-node-c",
         {"test-node-d", 3}
       ]
@@ -134,32 +126,22 @@ defmodule ExHashRing.Node.Test do
         |> counts()
 
       assert Map.get(counts, "test-node-a") == 5
-      assert Map.get(counts, "test-node-b") == 2
+      refute Map.has_key?(counts, "test-node-b")
       assert Map.get(counts, "test-node-c") == 5
       assert Map.get(counts, "test-node-d") == 3
     end
 
-    test "handles a list of mixed Node.t() and Node.name() with zero and negative replicas (ignores replicas argument for Node.t(), uses it for Node.name())" do
+    test "raises on a list of mixed Node.t() and Node.name() if any have negative replicas" do
       nodes = [
         "test-node-a",
-        {"test-node-b", 0},
+        {"test-node-b", 2},
         "test-node-c",
         {"test-node-d", -1},
-        "test-node-e",
-        {"test-node-f", 2}
       ]
 
-      counts =
-        nodes
-        |> Node.expand(5)
-        |> counts()
-
-      assert Map.get(counts, "test-node-a") == 5
-      refute Map.has_key?(counts, "test-node-b")
-      assert Map.get(counts, "test-node-c") == 5
-      refute Map.has_key?(counts, "test-node-d")
-      assert Map.get(counts, "test-node-e") == 5
-      assert Map.get(counts, "test-node-f") == 2
+      assert_raise ArgumentError, "test-node-d has -1 replicas, replicas must be non-negative", fn ->
+        Node.expand(nodes, 5)
+      end
     end
   end
 
