@@ -110,6 +110,7 @@ defmodule ExHashRing.Ring.Overrides.Test do
   end
 end
 
+
 defmodule ExHashRing.Ring.Operations.Test do
   use ExUnit.Case
 
@@ -119,9 +120,9 @@ defmodule ExHashRing.Ring.Operations.Test do
 
   setup do
     name = :"ExHashRing.Ring.Operations.Test.#{:erlang.unique_integer([:positive])}"
-    {:ok, _pid} = Ring.start_link(name: name, nodes: @nodes)
+    {:ok, pid} = Ring.start_link(name: name, nodes: @nodes)
 
-    [name: name]
+    [name: name, pid: pid]
   end
 
   describe "get_nodes/1" do
@@ -904,6 +905,48 @@ defmodule ExHashRing.Ring.Operations.Test do
 
       assert {:ok, 5} = Ring.get_generation(name)
       assert {:ok, [1, 2]} = Ring.get_pending_gcs(name)
+    end
+  end
+
+  describe "find_nodes/3" do
+    test "returns the number of nodes requested when number of nodes is less than the number of nodes in the ring", %{name: name} do
+      assert {:ok, nodes} = Ring.find_nodes(name, "test-key", 1)
+      assert Enum.count(nodes) == 1
+    end
+
+    test "returns the number of nodes requested when number of nodes is equal to the number of nodes in the ring", %{name: name} do
+      assert {:ok, nodes} = Ring.find_nodes(name, "test-key", 3)
+      assert Enum.count(nodes) == 3
+      assert Enum.sort(nodes) == @nodes
+    end
+
+    test "returns the number of nodes in the ring when requested number of nodes is greater than number of nodes in the ring", %{name: name} do
+      assert {:ok, nodes} = Ring.find_nodes(name, "test-key", 5)
+      assert Enum.count(nodes) == 3
+    end
+
+    test "handles overrides that do not appear in the ring when overrides fully cover the ring", %{name: name, pid: pid} do
+      assert {:ok, _} = Ring.set_overrides(pid, %{"test-key" => ["a", "b", "c", "d"]})
+
+      assert {:ok, nodes} = Ring.find_nodes(name, "test-key", 5)
+
+      assert nodes == ["a", "b", "c", "d"]
+    end
+
+    test "keeps searching, even if number of found overrides matches the ring size", %{name: name, pid: pid} do
+      assert {:ok, _} = Ring.set_overrides(pid, %{"test-key" => ["a", "b", "d"]})
+
+      assert {:ok, nodes} = Ring.find_nodes(name, "test-key", 5)
+
+      assert nodes == ["a", "b", "d", "c"]
+    end
+
+    test "keeps searching, even if we think we have reached all the nodes in the ring", %{name: name, pid: pid} do
+      assert {:ok, _} = Ring.set_overrides(pid, %{"test-key" => ["a", "d"]})
+
+      assert {:ok, nodes} = Ring.find_nodes(name, "test-key", 5)
+
+      ["a", "d", _, _] = nodes
     end
   end
 
