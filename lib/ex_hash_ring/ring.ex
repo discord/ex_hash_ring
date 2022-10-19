@@ -190,7 +190,8 @@ defmodule ExHashRing.Ring do
   Finds the specified number of nodes responsible for the given key in the specified ring's
   current generation.
   """
-  @spec find_nodes(ring(), key(), num :: non_neg_integer()) :: {:ok, [Node.name()]} | {:error, reason :: atom()}
+  @spec find_nodes(ring(), key(), num :: non_neg_integer()) ::
+          {:ok, [Node.name()]} | {:error, reason :: atom()}
   def find_nodes(ring, key, num) do
     find_historical_nodes(ring, key, num, 0)
   end
@@ -326,7 +327,8 @@ defmodule ExHashRing.Ring do
   @doc """
   Atomically remove multiple nodes from the ring by name
   """
-  @spec remove_nodes(ring(), names :: [Node.name()]) :: {:ok, [Node.t()]} | {:error, :node_not_exists}
+  @spec remove_nodes(ring(), names :: [Node.name()]) ::
+          {:ok, [Node.t()]} | {:error, :node_not_exists}
   def remove_nodes(ring, names) do
     GenServer.call(ring, {:remove_nodes, names})
   end
@@ -555,7 +557,7 @@ defmodule ExHashRing.Ring do
   end
 
   defp do_find_nodes_in_table(key, hash, table, overrides, generation, size, num) do
-    {found, found_length} =
+    {found_overrides, found_overrides_length} =
       case overrides do
         %{^key => overrides} ->
           Utils.take_max(overrides, num)
@@ -564,8 +566,21 @@ defmodule ExHashRing.Ring do
           {[], 0}
       end
 
-    {:ok,
-     do_find_nodes(table, generation, size, max(num - found_length, 0), hash, found, found_length)}
+    cond do
+      found_overrides_length == num ->
+        {:ok, found_overrides}
+
+      found_overrides_length == 0 ->
+        {:ok, do_find_nodes(table, generation, size, num, hash, [], 0)}
+
+      true ->
+        ring_nodes =
+          do_find_nodes(table, generation, size, num, hash, [], 0)
+          |> Enum.reject(&(&1 in found_overrides))
+
+        # The lists are in reverse order. The ones we want are at the end
+        {:ok, Enum.take(ring_nodes ++ found_overrides, -num)}
+    end
   end
 
   @spec do_find_stable_nodes(
