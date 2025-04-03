@@ -503,6 +503,18 @@ defmodule ExHashRing.Ring.Operations.Test do
     assert ring_ets_table_size(name) == 1024
   end
 
+  test "ring gen gc all with :all_pending specifier", %{name: name} do
+    {:ok, _} = Ring.remove_node(name, "c")
+    assert Ring.get_generation(name) == {:ok, 2}
+
+    assert Ring.force_gc(name, :all_pending) == {:ok, [1]}
+    assert Ring.force_gc(name, :all_pending) == {:ok, []}
+
+    # Break the veil and look under the hood and make sure that we don't have any old things in it anymore.
+    assert count_generation_entries(name, 1) == 0
+    assert ring_ets_table_size(name) == 1024
+  end
+
   test "automatic ring gc", %{name: name} do
     Configuration.put_gc_delay(50)
     on_exit(fn -> Configuration.clear_gc_delay() end)

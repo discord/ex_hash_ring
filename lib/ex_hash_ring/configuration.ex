@@ -62,6 +62,16 @@ defmodule ExHashRing.Configuration do
   end
 
   @doc """
+  Get the default operation timeout for ring operations. Unlike other configuration values,
+  this can only be configured at compile time.
+  """
+  defmacro get_default_operation_timeout() do
+    quote do
+      Application.compile_env(:ex_hash_ring, :default_operation_timeout, 5000)
+    end
+  end
+
+  @doc """
   Puts the history depth.
   """
   @spec put_depth(depth :: Ring.depth()) :: :ok

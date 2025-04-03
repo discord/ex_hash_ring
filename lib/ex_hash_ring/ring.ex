@@ -9,6 +9,10 @@ defmodule ExHashRing.Ring do
 
   alias ExHashRing.{Configuration, Hash, Info, Node, Utils}
 
+  require ExHashRing.Configuration
+
+  @default_operation_timeout Configuration.get_default_operation_timeout()
+
   @compile {:inline,
             do_find_historical_nodes: 5,
             do_find_nodes_in_table: 7,
@@ -155,25 +159,25 @@ defmodule ExHashRing.Ring do
   @doc """
   Adds a node to the existing set of nodes in the ring.
   """
-  @spec add_node(ring(), Node.name(), Node.replicas() | nil) ::
+  @spec add_node(ring(), Node.name(), Node.replicas() | nil, timeout :: timeout()) ::
           {:ok, [Node.t()]} | {:error, :node_exists}
-  def add_node(ring, node_name, num_replicas \\ nil)
+  def add_node(ring, node_name, num_replicas \\ nil, timeout \\ @default_operation_timeout)
 
-  def add_node(ring, node_name, nil) do
-    GenServer.call(ring, {:add_nodes, [node_name]})
+  def add_node(ring, node_name, nil, timeout) do
+    GenServer.call(ring, {:add_nodes, [node_name]}, timeout)
   end
 
-  def add_node(ring, node_name, num_replicas) do
-    GenServer.call(ring, {:add_nodes, [{node_name, num_replicas}]})
+  def add_node(ring, node_name, num_replicas, timeout) do
+    GenServer.call(ring, {:add_nodes, [{node_name, num_replicas}]}, timeout)
   end
 
   @doc """
   Adds multiple nodes to the existing set of nodes in the ring.
   """
-  @spec add_nodes(ring(), nodes :: [Node.definition()]) ::
+  @spec add_nodes(ring(), nodes :: [Node.definition()], timeout :: timeout()) ::
           {:ok, [Node.t()]} | {:error, :node_exists}
-  def add_nodes(ring, nodes) do
-    GenServer.call(ring, {:add_nodes, nodes})
+  def add_nodes(ring, nodes, timeout \\ @default_operation_timeout) do
+    GenServer.call(ring, {:add_nodes, nodes}, timeout)
   end
 
   @doc """
@@ -249,21 +253,14 @@ defmodule ExHashRing.Ring do
   end
 
   @doc """
-  Forces a garbage collection of any generations that are pending garbage collection. Returns the
-  generations that were collected.
+  Forces a garbage collection of a specific generation, all generations pending garbage collection
+  if `:all_pending` is specified. If a specific generation is specified, the it must be pending or
+  else `{:error, :not_pending}` is returned.
   """
-  @spec force_gc(ring()) :: {:ok, [generation()]}
-  def force_gc(ring) do
-    GenServer.call(ring, :force_gc)
-  end
-
-  @doc """
-  Forces a garbage collection of a specific generation, the generation must be pending or else
-  `{:error, :not_pending}` is returned.
-  """
-  @spec force_gc(ring(), generation()) :: :ok | {:error, :not_pending}
-  def force_gc(ring, generation) do
-    GenServer.call(ring, {:force_gc, generation})
+  @spec force_gc(ring(), generation() | :all_pending, timeout :: timeout()) ::
+          :ok | {:error, :not_pending}
+  def force_gc(ring, generation \\ :all_pending, timeout \\ @default_operation_timeout) do
+    GenServer.call(ring, {:force_gc, generation}, timeout)
   end
 
   @doc """
@@ -279,33 +276,33 @@ defmodule ExHashRing.Ring do
   @doc """
   Retrieves the current set of node names from the ring.
   """
-  @spec get_nodes(ring()) :: {:ok, [Node.name()]}
-  def get_nodes(ring) do
-    GenServer.call(ring, :get_nodes)
+  @spec get_nodes(ring(), timeout :: timeout()) :: {:ok, [Node.name()]}
+  def get_nodes(ring, timeout \\ @default_operation_timeout) do
+    GenServer.call(ring, :get_nodes, timeout)
   end
 
   @doc """
   Retrieves the current set of nodes as tuples of {name, replicas} from the ring.
   """
-  @spec get_nodes_with_replicas(ring()) :: {:ok, [Node.t()]}
-  def get_nodes_with_replicas(ring) do
-    GenServer.call(ring, :get_nodes_with_replicas)
+  @spec get_nodes_with_replicas(ring(), timeout :: timeout()) :: {:ok, [Node.t()]}
+  def get_nodes_with_replicas(ring, timeout \\ @default_operation_timeout) do
+    GenServer.call(ring, :get_nodes_with_replicas, timeout)
   end
 
   @doc """
   Retrieves the current set of overrides from the ring.
   """
-  @spec get_overrides(ring()) :: {:ok, overrides()}
-  def get_overrides(ring) do
-    GenServer.call(ring, :get_overrides)
+  @spec get_overrides(ring(), timeout :: timeout()) :: {:ok, overrides()}
+  def get_overrides(ring, timeout \\ @default_operation_timeout) do
+    GenServer.call(ring, :get_overrides, timeout)
   end
 
   @doc """
   Retrieves a list of pending gc generations.
   """
-  @spec get_pending_gcs(ring()) :: {:ok, [generation()]}
-  def get_pending_gcs(ring) do
-    GenServer.call(ring, :get_pending_gcs)
+  @spec get_pending_gcs(ring(), timeout :: timeout()) :: {:ok, [generation()]}
+  def get_pending_gcs(ring, timeout \\ @default_operation_timeout) do
+    GenServer.call(ring, :get_pending_gcs, timeout)
   end
 
   @doc """
@@ -319,9 +316,10 @@ defmodule ExHashRing.Ring do
   @doc """
   Removes a node from the ring by its name.
   """
-  @spec remove_node(ring(), name :: Node.name()) :: {:ok, [Node.t()]} | {:error, :node_not_exists}
-  def remove_node(ring, name) do
-    GenServer.call(ring, {:remove_nodes, [name]})
+  @spec remove_node(ring(), name :: Node.name(), timeout :: timeout()) ::
+          {:ok, [Node.t()]} | {:error, :node_not_exists}
+  def remove_node(ring, name, timeout \\ @default_operation_timeout) do
+    GenServer.call(ring, {:remove_nodes, [name]}, timeout)
   end
 
   @doc """
@@ -329,24 +327,25 @@ defmodule ExHashRing.Ring do
   """
   @spec remove_nodes(ring(), names :: [Node.name()]) ::
           {:ok, [Node.t()]} | {:error, :node_not_exists}
-  def remove_nodes(ring, names) do
-    GenServer.call(ring, {:remove_nodes, names})
+  def remove_nodes(ring, names, timeout \\ @default_operation_timeout) do
+    GenServer.call(ring, {:remove_nodes, names}, timeout)
   end
 
   @doc """
   Replaces the nodes in the ring with a new set of nodes.
   """
-  @spec set_nodes(ring(), nodes :: [Node.definition()]) :: {:ok, [Node.t()]}
-  def set_nodes(ring, nodes) do
-    GenServer.call(ring, {:set_nodes, nodes})
+  @spec set_nodes(ring(), nodes :: [Node.definition()], timeout :: timeout()) ::
+          {:ok, [Node.t()]}
+  def set_nodes(ring, nodes, timeout \\ @default_operation_timeout) do
+    GenServer.call(ring, {:set_nodes, nodes}, timeout)
   end
 
   @doc """
   Replaces the overrides in the ring with new overrides.
   """
-  @spec set_overrides(ring(), overrides()) :: {:ok, overrides()}
-  def set_overrides(ring, overrides) do
-    GenServer.call(ring, {:set_overrides, overrides})
+  @spec set_overrides(ring(), overrides(), timeout :: timeout()) :: {:ok, overrides()}
+  def set_overrides(ring, overrides, timeout \\ @default_operation_timeout) do
+    GenServer.call(ring, {:set_overrides, overrides}, timeout)
   end
 
   ## Server
@@ -392,12 +391,12 @@ defmodule ExHashRing.Ring do
     end
   end
 
-  def handle_call(:force_gc, _from, %{pending_gcs: pending_gcs} = state)
+  def handle_call({:force_gc, :all_pending}, _from, %{pending_gcs: pending_gcs} = state)
       when map_size(pending_gcs) == 0 do
     {:reply, {:ok, []}, state}
   end
 
-  def handle_call(:force_gc, _from, %__MODULE__{} = state) do
+  def handle_call({:force_gc, :all_pending}, _from, %__MODULE__{} = state) do
     generations =
       for {generation, timer_ref} <- state.pending_gcs do
         Process.cancel_timer(timer_ref)
