@@ -4,7 +4,7 @@ defmodule ExHashRing.HashRing.Mixfile do
   def project do
     [
       app: :ex_hash_ring,
-      version: "6.0.4",
+      version: "7.0.0",
       elixir: "~> 1.12",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
