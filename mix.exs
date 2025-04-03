@@ -17,7 +17,7 @@ defmodule ExHashRing.HashRing.Mixfile do
 
   def application do
     [
-      applications: [],
+      extra_applications: [],
       mod: {ExHashRing, []}
     ]
   end
@@ -26,7 +26,7 @@ defmodule ExHashRing.HashRing.Mixfile do
     [
       {:benchfella, "~> 0.3.0", only: :dev},
       {:dialyxir, "~> 1.0", only: :dev, runtime: false},
-      {:ex_doc, "~> 0.23.0", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end
 
