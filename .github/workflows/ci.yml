@@ -14,46 +14,28 @@ jobs:
     strategy:
       matrix:
         include:
-          - elixir-version: 1.6.6
-            otp-version: 20.3
-          - elixir-version: 1.6.6
-            otp-version: 21.3
-          - elixir-version: 1.7.4
-            otp-version: 20.3
-          - elixir-version: 1.7.4
-            otp-version: 21.3
-          - elixir-version: 1.7.4
-            otp-version: 22.3
-          - elixir-version: 1.8.2
-            otp-version: 20.3
-          - elixir-version: 1.8.2
-            otp-version: 21.3
-          - elixir-version: 1.8.2
-            otp-version: 22.3
-          - elixir-version: 1.9.4
-            otp-version: 20.3
-          - elixir-version: 1.9.4
-            otp-version: 21.3
-          - elixir-version: 1.9.4
-            otp-version: 22.3
-          - elixir-version: 1.10.4
-            otp-version: 21.3
-          - elixir-version: 1.10.4
-            otp-version: 22.3
-          - elixir-version: 1.11.4
-            otp-version: 21.3
-          - elixir-version: 1.11.4
-            otp-version: 22.3
-          - elixir-version: 1.11.4
-            otp-version: 23.3
-          - elixir-version: 1.11.4
-            otp-version: 24.0
-          - elixir-version: 1.12.1
-            otp-version: 22.3
-          - elixir-version: 1.12.1
-            otp-version: 23.3
-          - elixir-version: 1.12.1
-            otp-version: 24.0
+          - elixir-version: 1.12.3
+            otp-version: 24.3
+          - elixir-version: 1.15.5
+            otp-version: 25.3
+          - elixir-version: 1.15.5
+            otp-version: 26.2
+          - elixir-version: 1.16.2
+            otp-version: 25.3
+          - elixir-version: 1.16.2
+            otp-version: 26.2
+          - elixir-version: 1.17.3
+            otp-version: 25.3
+          - elixir-version: 1.17.3
+            otp-version: 26.2
+          - elixir-version: 1.17.3
+            otp-version: 27.0
+          - elixir-version: 1.18.3
+            otp-version: 25.3
+          - elixir-version: 1.18.3
+            otp-version: 26.2
+          - elixir-version: 1.18.3
+            otp-version: 27.2
     steps:
     - uses: actions/checkout@v2
     - name: Set up Elixir
@@ -62,7 +44,7 @@ jobs:
         elixir-version: ${{ matrix.elixir-version }}
         otp-version: ${{ matrix.otp-version }}
     - name: Restore dependencies cache
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: deps
         key: ${{ runner.os }}-${{ matrix.elixir-version }}-${{ matrix.otp-version}}-mix-${{ hashFiles('**/mix.lock') }}
