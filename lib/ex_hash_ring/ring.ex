@@ -253,31 +253,14 @@ defmodule ExHashRing.Ring do
   end
 
   @doc """
-  Forces a garbage collection of any generations that are pending garbage collection. Returns the
-  generations that were collected.
-
-  This is equivalent to `force_gc(ring, :pending)`.
-  """
-  @spec force_gc(ring()) :: {:ok, [generation()]}
-  def force_gc(ring) do
-    force_gc(ring, :pending)
-  end
-
-  @doc """
   Forces a garbage collection of a specific generation, all generations pending garbage collection
-  if `:pending` is specified. If a specific generation is specified, the it must be pending or
+  if `:all_pending` is specified. If a specific generation is specified, the it must be pending or
   else `{:error, :not_pending}` is returned.
   """
-  @spec force_gc(ring(), generation() | :pending, timeout :: timeout()) ::
+  @spec force_gc(ring(), generation() | :all_pending, timeout :: timeout()) ::
           :ok | {:error, :not_pending}
-  def force_gc(ring, generation, timeout \\ @default_operation_timeout) do
-    case generation do
-      :pending ->
-        GenServer.call(ring, :force_gc, timeout)
-
-      generation ->
-        GenServer.call(ring, {:force_gc, generation}, timeout)
-    end
+  def force_gc(ring, generation \\ :all_pending, timeout \\ @default_operation_timeout) do
+    GenServer.call(ring, {:force_gc, generation}, timeout)
   end
 
   @doc """
@@ -408,12 +391,12 @@ defmodule ExHashRing.Ring do
     end
   end
 
-  def handle_call(:force_gc, _from, %{pending_gcs: pending_gcs} = state)
+  def handle_call({:force_gc, :all_pending}, _from, %{pending_gcs: pending_gcs} = state)
       when map_size(pending_gcs) == 0 do
     {:reply, {:ok, []}, state}
   end
 
-  def handle_call(:force_gc, _from, %__MODULE__{} = state) do
+  def handle_call({:force_gc, :all_pending}, _from, %__MODULE__{} = state) do
     generations =
       for {generation, timer_ref} <- state.pending_gcs do
         Process.cancel_timer(timer_ref)
